@@ -1,6 +1,6 @@
 {
-  "name": "ShadiFlex - نظام المحاسبة والفوترة الإلكترونية (ZATCA Phase 2)",
-  "description": "نظام ShadiFlex السحابي المتكامل للمحاسبة ونقاط البيع (POS) وإدارة الفروع، متوافق كلياً مع المرحلة الثانية من الفوترة الإلكترونية (منظومة فاتورة ZATCA Phase 2) والربط المباشر عبر واجهات API.",
+  "name": "ShadiFlex - نظام المحاسبة ومحاكي الفوترة الإلكترونية (ZATCA)",
+  "description": "نظام ShadiFlex السحابي المتكامل للمحاسبة ونقاط البيع (POS) وإدارة الفروع، مع محرك فحص ومحاكاة محلية لاشتراطات الفوترة الإلكترونية (ZATCA Phase 2).",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -313,7 +313,7 @@ export const DebitCreditNoteModal: React.FC<DebitCreditNoteModalProps> = ({
             </div>
             <div>
               <h2 className="font-extrabold text-base sm:text-lg">
-                {type === 'credit_note' ? 'إصدار إشعار دائن ضريبي معتمد (Credit Note)' : 'إصدار إشعار مدين ضريبي معتمد (Debit Note)'}
+                {type === 'credit_note' ? 'إصدار إشعار دائن ضريبي (Credit Note)' : 'إصدار إشعار مدين ضريبي (Debit Note)'}
               </h2>
               <p className="text-xs text-slate-400">
                 متوافق مع هيئة الزكاة والضريبة والجمارك (ZATCA) مع توليد القيود المزدوجة آلياً

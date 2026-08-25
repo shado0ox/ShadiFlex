@@ -22,6 +22,7 @@ import { AiAdvisor } from './components/AiAdvisor';
 import { PosTerminal } from './components/POS/PosTerminal';
 import { BranchesAndRegistersManager } from './components/POS/BranchesAndRegistersManager';
 import { DesignerSignature } from './components/Signature/DesignerSignature';
+import { DemoBanner } from './components/DemoBanner';
 import { SalesInvoice } from './types/accounting';
 
 const MainLayout: React.FC = () => {
@@ -52,6 +53,9 @@ const MainLayout: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-100">
+        {/* Demo Mode Notice Banner */}
+        <DemoBanner />
+
         {/* Header */}
         <Header
           onOpenSidebar={() => setSidebarOpen(true)}

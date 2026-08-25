@@ -80,8 +80,8 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                 <div className="space-y-1 text-right flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <ShadiFlexLogo size="sm" />
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
-                      معتمد ZATCA Phase 2 (فاتورة)
+                    <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full border border-amber-300">
+                      نموذج فاتورة متوافق مع اشتراطات ZATCA (محاكاة محلية)
                     </span>
                   </div>
                   <h1 className="text-base sm:text-xl font-extrabold text-slate-900 leading-tight">
@@ -122,7 +122,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     </div>
                   )}
                   <span className="text-[9px] font-bold text-slate-700 mt-1 uppercase tracking-wider">
-                    رمز QR المرحلة 2 (9-TLV)
+                    رمز QR تجريبي محلي (Local Simulation)
                   </span>
                 </div>
               </div>

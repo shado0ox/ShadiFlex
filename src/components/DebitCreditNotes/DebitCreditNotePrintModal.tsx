@@ -30,7 +30,7 @@ export const DebitCreditNotePrintModal: React.FC<DebitCreditNotePrintModalProps>
   if (!note) return null;
 
   const isCreditNote = note.type === 'credit_note';
-  const titleAr = isCreditNote ? 'إشعار دائن ضريبي معتمد' : 'إشعار مدين ضريبي معتمد';
+  const titleAr = isCreditNote ? 'إشعار دائن ضريبي' : 'إشعار مدين ضريبي';
   const titleEn = isCreditNote ? 'TAX CREDIT NOTE (ZATCA)' : 'TAX DEBIT NOTE (ZATCA)';
 
   const handlePrint = () => {
@@ -257,8 +257,8 @@ export const DebitCreditNotePrintModal: React.FC<DebitCreditNotePrintModalProps>
                   </div>
                 )}
                 <div className="text-[10px] text-slate-500 space-y-0.5">
-                  <p className="flex items-center gap-1 text-emerald-700 font-semibold">
-                    <CheckCircle2 className="w-3 h-3" /> مشفر بتنسيق Base64 / TLV المعتمد
+                  <p className="flex items-center gap-1 text-slate-600 font-semibold">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> مشفر بتنسيق Base64 / TLV التجريبي المحلي
                   </p>
                   <p className="font-mono text-[9px] text-slate-400 break-all">UUID: {note.uuid}</p>
                 </div>

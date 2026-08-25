@@ -811,8 +811,8 @@ export const INITIAL_API_KEYS: ApiKey[] = [
   {
     id: 'key_1',
     name: 'متجر سلة الإلكتروني (Salla Integration)',
-    key: 'sk_live_salla_8941982739182371928371982371',
-    maskedKey: 'sk_live_salla_•••••••••••••••••••••2371',
+    key: 'demo_key_not_active',
+    maskedKey: 'demo_salla_••••••••••••2371',
     environment: 'production',
     permissions: ['invoices:read', 'invoices:write', 'zatca:sync'],
     createdAt: '2026-06-01T10:00:00Z',
@@ -822,8 +822,8 @@ export const INITIAL_API_KEYS: ApiKey[] = [
   {
     id: 'key_2',
     name: 'نظام نقاط البيع والكاشير (POS Terminals API)',
-    key: 'sk_live_pos_9918273645102938475610293847',
-    maskedKey: 'sk_live_pos_•••••••••••••••••••••3847',
+    key: 'demo_key_not_active',
+    maskedKey: 'demo_pos_••••••••••••3847',
     environment: 'production',
     permissions: ['invoices:write', 'expenses:write', 'reports:read'],
     createdAt: '2026-07-15T12:30:00Z',
@@ -833,8 +833,8 @@ export const INITIAL_API_KEYS: ApiKey[] = [
   {
     id: 'key_3',
     name: 'بيئة الاختبار والمطورين (Sandbox Developer Key)',
-    key: 'sk_test_dev_0019283746501928374650192837',
-    maskedKey: 'sk_test_dev_•••••••••••••••••••••2837',
+    key: 'demo_key_not_active',
+    maskedKey: 'demo_sandbox_••••••••2837',
     environment: 'test',
     permissions: ['invoices:read', 'invoices:write', 'expenses:read', 'expenses:write', 'reports:read', 'zatca:sync'],
     createdAt: '2026-08-01T09:00:00Z',

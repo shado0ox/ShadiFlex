@@ -79,10 +79,10 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                   <button
                     onClick={() => setActiveTab('zatca_phase2')}
-                    className="hidden sm:inline-flex bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-emerald-300 items-center gap-1 shrink-0 transition"
+                    className="hidden sm:inline-flex bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-amber-300 items-center gap-1 shrink-0 transition"
                   >
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {language === 'ar' ? 'فاتورة المرحلة 2 (ZATCA)' : 'ZATCA Phase 2 Active'}
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    {language === 'ar' ? 'محاكي ZATCA (فحص محلي)' : 'ZATCA Simulator (Local)'}
                   </button>
                 </div>
                 <p className="text-[10px] sm:text-[11px] text-slate-400 hidden md:block truncate">

@@ -140,7 +140,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
                 {invoice.type === 'tax_invoice' ? 'فاتورة ضريبية (B2B)' : 'فاتورة ضريبية مبسطة (B2C)'}
               </span>
               <p className="text-[9px] text-slate-500 mt-1">
-                معتمدة وفق لائحة هيئة الزكاة والضريبة والجمارك (ZATCA Phase 2)
+                نموذج إيصال متوافق مع اشتراطات ZATCA (محاكاة محلية)
               </p>
             </div>
 
@@ -288,7 +288,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
                 </div>
               )}
               <p className="text-[9px] text-slate-500 mt-1.5 font-medium">
-                امسح الرمز عبر تطبيق «زكاة وضريبة» للتحقق من نظامية الفاتورة
+                رمز QR تجريبي محلي (Local Simulation QR)
               </p>
             </div>
 

@@ -142,10 +142,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     },
     {
       id: 'zatca_phase2',
-      label: language === 'ar' ? 'منظومة فاتورة ZATCA (المرحلة 2)' : 'ZATCA Phase 2 (FATOORA)',
+      label: language === 'ar' ? 'الفحص المحلي ومحاكاة ZATCA' : 'ZATCA Local Simulation',
       icon: ShieldCheck,
-      badge: 'FATOORA',
-      badgeColor: 'bg-emerald-500/20 text-emerald-800 border-emerald-500/40 font-bold',
+      badge: language === 'ar' ? 'فحص ومحاكاة' : 'SIMULATION',
+      badgeColor: 'bg-amber-500/20 text-amber-900 border-amber-500/40 font-bold',
     },
     {
       id: 'vat_return',
@@ -258,18 +258,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
         {/* Bottom Section: ZATCA Badge + Ornate Designer Signature */}
         <div className="p-4 space-y-3 shrink-0">
-          {/* ZATCA Compliance Card */}
-          <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-xs text-slate-600 space-y-1.5 shadow-xs">
-            <div className="flex items-center gap-2 text-emerald-800 font-bold">
-              <div className="w-5 h-5 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
+          {/* ZATCA Simulation Card */}
+          <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-xs text-slate-600 space-y-1.5 shadow-xs">
+            <div className="flex items-center gap-2 text-amber-900 font-bold">
+              <div className="w-5 h-5 rounded-lg bg-amber-600 text-white flex items-center justify-center">
                 <ShieldCheck className="w-3.5 h-3.5" />
               </div>
-              <span>{language === 'ar' ? 'فوترة إلكترونية معتمدة' : 'ZATCA Phase 2 E-Invoice'}</span>
+              <span>{language === 'ar' ? 'فاحص ومحاكي اشتراطات ZATCA' : 'ZATCA Simulation Engine'}</span>
             </div>
             <p className="text-[11px] leading-relaxed text-slate-600">
               {language === 'ar'
-                ? 'متوافق بنسبة 100% مع معايير ZATCA (تشفير Base64 TLV، نقاط البيع والمرحلة الثانية).'
-                : '100% compliant with Saudi ZATCA standards (Base64 TLV encryption & POS integration).'}
+                ? 'فحص محلي لاشتراطات الفوترة الإلكترونية وتشفير Base64 TLV وقواعد UBL 2.1.'
+                : 'Local validation for e-invoicing requirements, Base64 TLV formatting & UBL 2.1 rules.'}
             </p>
           </div>
 

@@ -47,6 +47,7 @@ import {
 } from '../data/initialData';
 import { generateZatcaTlvBase64 } from '../utils/zatca';
 import { tafqeetArabic } from '../utils/currency';
+import { getAccountingRepository } from '../services/dataService';
 
 interface AccountingContextType {
   accounts: Account[];
@@ -220,164 +221,60 @@ interface AccountingContextType {
   getVatReturn: (startDate?: string, endDate?: string, period?: string) => VatReturnReport;
 }
 
-const STORAGE_KEY = 'saudi_accounting_system_v1';
-
 const AccountingContext = createContext<AccountingContextType | undefined>(undefined);
 
 export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const repo = getAccountingRepository();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
-  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_company`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const nationalAddress = {
-          ...DEFAULT_COMPANY_SETTINGS.nationalAddress,
-          ...(parsed.nationalAddress || parsed.address || {}),
-        };
-        const address = {
-          ...DEFAULT_COMPANY_SETTINGS.address,
-          ...(parsed.address || parsed.nationalAddress || {}),
-        };
-        return {
-          ...DEFAULT_COMPANY_SETTINGS,
-          ...parsed,
-          nationalAddress,
-          address,
-          fiscalYear: parsed.fiscalYear || 2026,
-          fiscalYearStart: parsed.fiscalYearStart || '2026-01-01',
-          fiscalYearEnd: parsed.fiscalYearEnd || '2026-12-31',
-        };
-      }
-    } catch (e) {
-      console.error('Failed to parse saved company settings', e);
-    }
-    return DEFAULT_COMPANY_SETTINGS;
-  });
-
-  const [accounts, setAccounts] = useState<Account[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_accounts`);
-    return saved ? JSON.parse(saved) : DEFAULT_CHART_OF_ACCOUNTS;
-  });
-
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_customers`);
-    return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
-  });
-
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_suppliers`);
-    return saved ? JSON.parse(saved) : INITIAL_SUPPLIERS;
-  });
-
-  const [inventory, setInventory] = useState<InventoryItem[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_inventory`);
-    return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
-  });
-
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_stock_movements`);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [salesInvoices, setSalesInvoices] = useState<SalesInvoice[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_sales_invoices`);
-    return saved ? JSON.parse(saved) : INITIAL_SALES_INVOICES;
-  });
-
-  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_purchase_invoices`);
-    return saved ? JSON.parse(saved) : INITIAL_PURCHASE_INVOICES;
-  });
-
-  const [debitCreditNotes, setDebitCreditNotes] = useState<DebitCreditNote[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_debit_credit_notes`);
-    return saved ? JSON.parse(saved) : INITIAL_DEBIT_CREDIT_NOTES;
-  });
-
-  const [vouchers, setVouchers] = useState<Voucher[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_vouchers`);
-    return saved ? JSON.parse(saved) : INITIAL_VOUCHERS;
-  });
-
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_journal_entries`);
-    return saved ? JSON.parse(saved) : INITIAL_JOURNAL_ENTRIES;
-  });
-
-  const [simpleExpenses, setSimpleExpenses] = useState<SimpleExpenseInvoice[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_simple_expenses`);
-    return saved ? JSON.parse(saved) : INITIAL_SIMPLE_EXPENSES;
-  });
-
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_api_keys`);
-    return saved ? JSON.parse(saved) : INITIAL_API_KEYS;
-  });
-
-  const [fiscalClosings, setFiscalClosings] = useState<FiscalYearClosing[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_fiscal_closings`);
-    return saved ? JSON.parse(saved) : INITIAL_FISCAL_CLOSINGS;
-  });
-
-  const [branches, setBranches] = useState<Branch[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_branches`);
-    return saved ? JSON.parse(saved) : INITIAL_BRANCHES;
-  });
-
-  const [cashRegisters, setCashRegisters] = useState<CashRegister[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_cash_registers`);
-    return saved ? JSON.parse(saved) : INITIAL_CASH_REGISTERS;
-  });
-
-  const [cashierShifts, setCashierShifts] = useState<CashierShift[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_cashier_shifts`);
-    return saved ? JSON.parse(saved) : INITIAL_CASHIER_SHIFTS;
-  });
-
-  const [parkedOrders, setParkedOrders] = useState<ParkedOrder[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_parked_orders`);
-    return saved ? JSON.parse(saved) : INITIAL_PARKED_ORDERS;
-  });
-
-  const [activeBranchId, setActiveBranchId] = useState<string>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_active_branch`);
-    return saved || 'br_1';
-  });
-
-  const [activeRegisterId, setActiveRegisterId] = useState<string>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_active_register`);
-    return saved || 'reg_1';
-  });
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => repo.loadCompanySettings());
+  const [accounts, setAccounts] = useState<Account[]>(() => repo.loadAccounts());
+  const [customers, setCustomers] = useState<Customer[]>(() => repo.loadCustomers());
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => repo.loadSuppliers());
+  const [inventory, setInventory] = useState<InventoryItem[]>(() => repo.loadInventory());
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => repo.loadStockMovements());
+  const [salesInvoices, setSalesInvoices] = useState<SalesInvoice[]>(() => repo.loadSalesInvoices());
+  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>(() => repo.loadPurchaseInvoices());
+  const [debitCreditNotes, setDebitCreditNotes] = useState<DebitCreditNote[]>(() => repo.loadDebitCreditNotes());
+  const [vouchers, setVouchers] = useState<Voucher[]>(() => repo.loadVouchers());
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => repo.loadJournalEntries());
+  const [simpleExpenses, setSimpleExpenses] = useState<SimpleExpenseInvoice[]>(() => repo.loadSimpleExpenses());
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>(() => repo.loadApiKeys());
+  const [fiscalClosings, setFiscalClosings] = useState<FiscalYearClosing[]>(() => repo.loadFiscalClosings());
+  const [branches, setBranches] = useState<Branch[]>(() => repo.loadBranches());
+  const [cashRegisters, setCashRegisters] = useState<CashRegister[]>(() => repo.loadCashRegisters());
+  const [cashierShifts, setCashierShifts] = useState<CashierShift[]>(() => repo.loadCashierShifts());
+  const [parkedOrders, setParkedOrders] = useState<ParkedOrder[]>(() => repo.loadParkedOrders());
+  const [activeBranchId, setActiveBranchId] = useState<string>(() => repo.loadActiveBranchId());
+  const [activeRegisterId, setActiveRegisterId] = useState<string>(() => repo.loadActiveRegisterId());
 
   // Calculate current active shift for active register
   const activeShift = cashierShifts.find(
     (s) => s.registerId === activeRegisterId && s.status === 'open'
   );
 
-  // Save to localStorage whenever state changes
+  // Save to persistence layer via Repository
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_company`, JSON.stringify(companySettings));
-    localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(accounts));
-    localStorage.setItem(`${STORAGE_KEY}_customers`, JSON.stringify(customers));
-    localStorage.setItem(`${STORAGE_KEY}_suppliers`, JSON.stringify(suppliers));
-    localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(inventory));
-    localStorage.setItem(`${STORAGE_KEY}_stock_movements`, JSON.stringify(stockMovements));
-    localStorage.setItem(`${STORAGE_KEY}_sales_invoices`, JSON.stringify(salesInvoices));
-    localStorage.setItem(`${STORAGE_KEY}_purchase_invoices`, JSON.stringify(purchaseInvoices));
-    localStorage.setItem(`${STORAGE_KEY}_debit_credit_notes`, JSON.stringify(debitCreditNotes));
-    localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(vouchers));
-    localStorage.setItem(`${STORAGE_KEY}_simple_expenses`, JSON.stringify(simpleExpenses));
-    localStorage.setItem(`${STORAGE_KEY}_api_keys`, JSON.stringify(apiKeys));
-    localStorage.setItem(`${STORAGE_KEY}_fiscal_closings`, JSON.stringify(fiscalClosings));
-    localStorage.setItem(`${STORAGE_KEY}_journal_entries`, JSON.stringify(journalEntries));
-    localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branches));
-    localStorage.setItem(`${STORAGE_KEY}_cash_registers`, JSON.stringify(cashRegisters));
-    localStorage.setItem(`${STORAGE_KEY}_cashier_shifts`, JSON.stringify(cashierShifts));
-    localStorage.setItem(`${STORAGE_KEY}_parked_orders`, JSON.stringify(parkedOrders));
-    localStorage.setItem(`${STORAGE_KEY}_active_branch`, activeBranchId);
-    localStorage.setItem(`${STORAGE_KEY}_active_register`, activeRegisterId);
+    repo.saveCompanySettings(companySettings);
+    repo.saveAccounts(accounts);
+    repo.saveCustomers(customers);
+    repo.saveSuppliers(suppliers);
+    repo.saveInventory(inventory);
+    repo.saveStockMovements(stockMovements);
+    repo.saveSalesInvoices(salesInvoices);
+    repo.savePurchaseInvoices(purchaseInvoices);
+    repo.saveDebitCreditNotes(debitCreditNotes);
+    repo.saveVouchers(vouchers);
+    repo.saveSimpleExpenses(simpleExpenses);
+    repo.saveApiKeys(apiKeys);
+    repo.saveFiscalClosings(fiscalClosings);
+    repo.saveJournalEntries(journalEntries);
+    repo.saveBranches(branches);
+    repo.saveCashRegisters(cashRegisters);
+    repo.saveCashierShifts(cashierShifts);
+    repo.saveParkedOrders(parkedOrders);
+    repo.saveActiveBranchId(activeBranchId);
+    repo.saveActiveRegisterId(activeRegisterId);
   }, [
     companySettings,
     accounts,
@@ -1192,14 +1089,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setAccounts((prevAccs) => recalculateAccountBalances(updatedJournal, prevAccs));
   };
 
-  // API Keys Management
+  // API Keys Management (Demo Presentation Layer)
   const createApiKey = (keyData: Omit<ApiKey, 'id' | 'key' | 'maskedKey' | 'createdAt' | 'isActive'>): ApiKey => {
-    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
-    const prefix = keyData.environment === 'production' ? 'sk_live_' : 'sk_test_';
-    const key = `${prefix}${randomHex}`;
-    const maskedKey = `${prefix}••••••••••••••••••••${randomHex.slice(-4)}`;
+    const prefix = keyData.environment === 'production' ? 'demo_live_' : 'demo_test_';
+    // The key generated is an active in-memory demo reference, not saved to localStorage or usable as real credential
+    const key = `${prefix}${randomHex}_not_active`;
+    const maskedKey = `${prefix}••••••••${randomHex.slice(-4)}`;
 
     const newApiKey: ApiKey = {
       ...keyData,
@@ -2040,6 +1938,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const resetToDemoData = () => {
+    repo.resetToDemoData();
     setCompanySettings(DEFAULT_COMPANY_SETTINGS);
     setAccounts(DEFAULT_CHART_OF_ACCOUNTS);
     setCustomers(INITIAL_CUSTOMERS);
@@ -2060,60 +1959,37 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setActiveBranchId('br_1');
     setActiveRegisterId('reg_1');
     setStockMovements([]);
-    localStorage.clear();
   };
 
   const exportDataJson = (): string => {
-    const data = {
-      companySettings,
-      accounts,
-      customers,
-      suppliers,
-      inventory,
-      salesInvoices,
-      purchaseInvoices,
-      debitCreditNotes,
-      vouchers,
-      simpleExpenses,
-      apiKeys,
-      fiscalClosings,
-      journalEntries,
-      branches,
-      cashRegisters,
-      cashierShifts,
-      parkedOrders,
-      stockMovements,
-      exportedAt: new Date().toISOString(),
-    };
-    return JSON.stringify(data, null, 2);
+    return repo.exportDataJson();
   };
 
   const importDataJson = (json: string): boolean => {
-    try {
-      const data = JSON.parse(json);
-      if (data.companySettings) setCompanySettings(data.companySettings);
-      if (data.accounts) setAccounts(data.accounts);
-      if (data.customers) setCustomers(data.customers);
-      if (data.suppliers) setSuppliers(data.suppliers);
-      if (data.inventory) setInventory(data.inventory);
-      if (data.salesInvoices) setSalesInvoices(data.salesInvoices);
-      if (data.purchaseInvoices) setPurchaseInvoices(data.purchaseInvoices);
-      if (data.debitCreditNotes) setDebitCreditNotes(data.debitCreditNotes);
-      if (data.vouchers) setVouchers(data.vouchers);
-      if (data.simpleExpenses) setSimpleExpenses(data.simpleExpenses);
-      if (data.apiKeys) setApiKeys(data.apiKeys);
-      if (data.fiscalClosings) setFiscalClosings(data.fiscalClosings);
-      if (data.journalEntries) setJournalEntries(data.journalEntries);
-      if (data.branches) setBranches(data.branches);
-      if (data.cashRegisters) setCashRegisters(data.cashRegisters);
-      if (data.cashierShifts) setCashierShifts(data.cashierShifts);
-      if (data.parkedOrders) setParkedOrders(data.parkedOrders);
-      if (data.stockMovements) setStockMovements(data.stockMovements);
-      return true;
-    } catch (e) {
-      console.error('Error importing data JSON:', e);
-      return false;
+    const success = repo.importDataJson(json);
+    if (success) {
+      setCompanySettings(repo.loadCompanySettings());
+      setAccounts(repo.loadAccounts());
+      setCustomers(repo.loadCustomers());
+      setSuppliers(repo.loadSuppliers());
+      setInventory(repo.loadInventory());
+      setSalesInvoices(repo.loadSalesInvoices());
+      setPurchaseInvoices(repo.loadPurchaseInvoices());
+      setDebitCreditNotes(repo.loadDebitCreditNotes());
+      setVouchers(repo.loadVouchers());
+      setSimpleExpenses(repo.loadSimpleExpenses());
+      setApiKeys(repo.loadApiKeys());
+      setFiscalClosings(repo.loadFiscalClosings());
+      setJournalEntries(repo.loadJournalEntries());
+      setBranches(repo.loadBranches());
+      setCashRegisters(repo.loadCashRegisters());
+      setCashierShifts(repo.loadCashierShifts());
+      setParkedOrders(repo.loadParkedOrders());
+      setStockMovements(repo.loadStockMovements());
+      setActiveBranchId(repo.loadActiveBranchId());
+      setActiveRegisterId(repo.loadActiveRegisterId());
     }
+    return success;
   };
 
   // Statement of Account (كشف حساب)

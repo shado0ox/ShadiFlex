@@ -17,7 +17,7 @@ export interface ZatcaPhase2Config {
   pcsidSecret?: string;
   pcsidToken?: string;
   otp?: string;
-  onboardingStatus: 'not_started' | 'csr_ready' | 'compliance_tested' | 'production_ready' | 'active';
+  onboardingStatus: 'not_started' | 'csr_ready' | 'compliance_tested' | 'simulation_ready';
   complianceChecks: {
     standardInvoice: boolean;
     simplifiedInvoice: boolean;
@@ -33,19 +33,19 @@ export const INITIAL_ZATCA_PHASE2_CONFIG: ZatcaPhase2Config = {
   environment: 'simulation',
   egsUuid: '8f4c1e92-3a5b-4c7d-9e1f-6a2b8c4d0e3a',
   solutionName: 'SHADIFLEX-ERP-POS-V2',
-  model: 'EGS-POS-2026',
-  serialNumber: 'SN-KSA-2026-00918',
-  organizationUnit: 'الفرع الرئيسي - الرياض',
+  model: 'EGS-POS-SIMULATOR-2026',
+  serialNumber: 'SN-KSA-SIM-2026-00918',
+  organizationUnit: 'الفرع الرئيسي - الرياض (محاكاة محلية)',
   industryOrSector: 'تجارة التجزئة والجملة والخدمات',
   csrPem: '',
   privateKeyPem: '',
   publicKeyPem: '',
   ccsidSecret: '',
   ccsidToken: '',
-  pcsidSecret: 'sec_zatca_pcsid_prod_99214710',
-  pcsidToken: 'pcsid_eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.zatca_phase2_active_cert_sha256',
+  pcsidSecret: 'demo_simulation_secret_not_active',
+  pcsidToken: 'demo_simulation_token_not_active',
   otp: '',
-  onboardingStatus: 'active',
+  onboardingStatus: 'simulation_ready',
   complianceChecks: {
     standardInvoice: true,
     simplifiedInvoice: true,
@@ -53,8 +53,8 @@ export const INITIAL_ZATCA_PHASE2_CONFIG: ZatcaPhase2Config = {
     creditNote: true,
   },
   lastSyncDate: new Date().toISOString(),
-  autoReportToZatca: true,
-  autoClearB2B: true,
+  autoReportToZatca: false,
+  autoClearB2B: false,
 };
 
 // Initial Genesis Hash for the very first invoice (Base64 of SHA-256 of 0)
@@ -240,7 +240,7 @@ export async function generateZatcaPhase2TlvBase64(fields: ZatcaPhase2QrFields):
 
   const certSig =
     fields.certificateSignature ||
-    `ZATCA-CERT-SA-${fields.vatNumber}-${await calculateSha256Hex(fields.vatNumber).then((h) => h.substring(0, 16))}`;
+    `SIMULATED-LOCAL-CERT-${fields.vatNumber}-${await calculateSha256Hex(fields.vatNumber).then((h) => h.substring(0, 16))}`;
   tags.push(encodeTlvTag(9, certSig));
 
   const totalLength = tags.reduce((acc, tag) => acc + tag.length, 0);
@@ -486,10 +486,12 @@ Subject: ${subjectHeader}
 }
 
 export interface ZatcaValidationResult {
-  status: 'PASS' | 'WARNING' | 'ERROR';
+  validationMode: 'local_simulation';
+  officialZatcaSubmission: false;
+  status: 'LOCAL_VALIDATION_PASSED' | 'LOCAL_VALIDATION_WARNING' | 'LOCAL_VALIDATION_FAILED';
+  simulationStatus: 'SIMULATED';
   invoiceNumber: string;
   uuid: string;
-  clearanceOrReportingStatus: 'CLEARED' | 'REPORTED' | 'REJECTED';
   cryptographicStamp: string;
   hash: string;
   sha256Hex: string;
@@ -498,12 +500,17 @@ export interface ZatcaValidationResult {
   errors: string[];
   timestamp: string;
   ublXml: string;
+  disclaimerAr: string;
+  disclaimerEn: string;
+  // Legacy compatibility getters/fields
+  clearanceOrReportingStatus?: string;
 }
 
 /**
- * Real ZATCA API Compliance and Real Clearance/Reporting Engine
+ * Local Validation & Simulation Engine for ZATCA Phase 2 E-Invoicing Rules
+ * Note: Performs in-browser structural and mathematical rule verification without live server accreditation.
  */
-export async function validateAndProcessRealZatcaInvoice(
+export async function validateAndSimulateZatcaInvoice(
   invoice: SalesInvoice,
   company: CompanySettings,
   config: ZatcaPhase2Config,
@@ -515,17 +522,17 @@ export async function validateAndProcessRealZatcaInvoice(
   const warnings: string[] = [];
   const errors: string[] = [];
 
-  // 1. Generate canonical UBL 2.1 XML
+  // 1. Generate canonical UBL 2.1 XML for simulation
   const ublXml = generateZatcaUbl21Xml(invoice, company, pih, icv);
 
-  // 2. Real SHA-256 Cryptographic Hash of the XML
+  // 2. Local SHA-256 Hash of the XML
   const hash = await calculateSha256Base64(ublXml);
   const sha256Hex = await calculateSha256Hex(ublXml);
 
   // BR-KSA-01: VAT Number validation (exact 15 digits, starts and ends with 3)
   const vatTrim = (company.vatNumber || '').trim();
   if (/^3\d{13}3$/.test(vatTrim)) {
-    passedChecks.push(`BR-KSA-01: الرقم الضريبي للمنشأة (${vatTrim}) مطابق لاشتراطات هيئة الزكاة (15 خانة يبدأ وينتهي بالرقم 3).`);
+    passedChecks.push(`BR-KSA-01: الرقم الضريبي للمنشأة (${vatTrim}) مطابق لاشتراطات الفحص المحلي (15 خانة يبدأ وينتهي بالرقم 3).`);
   } else {
     errors.push(`BR-KSA-01: الرقم الضريبي للمنشأة (${vatTrim}) غير صالح أو لا يبدأ وينتهي بالرقم 3.`);
   }
@@ -540,9 +547,9 @@ export async function validateAndProcessRealZatcaInvoice(
   // BR-KSA-03: UUID compliance (RFC 4122)
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (invoice.uuid && uuidRegex.test(invoice.uuid)) {
-    passedChecks.push(`BR-KSA-03: المعرف الفريد العالمي (UUID) سليم ومطابق للمعيار الدولي RFC 4122: ${invoice.uuid}`);
+    passedChecks.push(`BR-KSA-03: المعرف الفريد العالمي (UUID) مطابق للمعيار الدولي RFC 4122: ${invoice.uuid}`);
   } else if (invoice.uuid && invoice.uuid.length >= 16) {
-    passedChecks.push(`BR-KSA-03: المعرف الفريد العالمي (UUID) مسجل برمجياً: ${invoice.uuid}`);
+    passedChecks.push(`BR-KSA-03: المعرف الفريد العالمي (UUID) مسجل محلياً: ${invoice.uuid}`);
   } else {
     errors.push('BR-KSA-03: المعرف الفريد العالمي (UUID) مفقود أو غير مطابق لمواصفات الهيئة.');
   }
@@ -560,20 +567,20 @@ export async function validateAndProcessRealZatcaInvoice(
 
   // BR-KSA-05: Previous Invoice Hash (PIH) Chaining check
   if (pih && pih.length >= 20) {
-    passedChecks.push('BR-KSA-05: سلسلة الهاش المتتابع (PIH Chaining) متصلة ومشفرة برمجياً لمنع التلاعب في تسلسل الفواتير.');
+    passedChecks.push('BR-KSA-05: سلسلة الهاش المتتابع (PIH Chaining) متصلة محلياً لمحاكاة منع التلاعب بالتسلسل.');
   } else {
-    warnings.push('BR-KSA-05: الهاش السابق (PIH) فارغ، سيتم تطبيق الهاش الابتدائي (Genesis PIH).');
+    warnings.push('BR-KSA-05: الهاش السابق (PIH) فارغ، سيتم تطبيق الهاش الابتدائي التجريبي (Genesis PIH).');
   }
 
   // BR-KSA-06: B2B Buyer details check
   if (isB2B) {
     if (!invoice.customerVatNumber || !/^3\d{13}3$/.test(invoice.customerVatNumber.trim())) {
-      warnings.push('BR-KSA-06: الفاتورة الضريبية القياسية (B2B) تتطلب تسجيل الرقم الضريبي للمشتري (15 رقم) للاسترداد الضريبي المباشر.');
+      warnings.push('BR-KSA-06: الفاتورة الضريبية القياسية (B2B) تتطلب تسجيل الرقم الضريبي للمشتري (15 رقم) لاكتمال متطلبات الخصم.');
     } else {
-      passedChecks.push(`BR-KSA-06: بيانات المشتري والرقم الضريبي (${invoice.customerVatNumber}) مسجلة ومعتمدة.`);
+      passedChecks.push(`BR-KSA-06: بيانات المشتري والرقم الضريبي (${invoice.customerVatNumber}) مسجلة ومطابقة للشكل النظامي.`);
     }
   } else {
-    passedChecks.push('BR-KSA-07: الفاتورة الضريبية المبسطة (B2C) مستوفية لشروط الإبلاغ اللحظي (Reporting).');
+    passedChecks.push('BR-KSA-07: الفاتورة الضريبية المبسطة (B2C) مستوفية لاشتراطات المحاكاة والترميز.');
   }
 
   // BR-KSA-08: XML Schema Structure Check (DOMParser)
@@ -582,7 +589,7 @@ export async function validateAndProcessRealZatcaInvoice(
     const xmlDoc = parser.parseFromString(ublXml, 'application/xml');
     const parseErrors = xmlDoc.getElementsByTagName('parsererror');
     if (parseErrors.length === 0) {
-      passedChecks.push('BR-KSA-08: بنية ملف UBL 2.1 XML سليمة وصالحة طبقاً لمعايير OASIS وهيئة الزكاة.');
+      passedChecks.push('BR-KSA-08: بنية ملف UBL 2.1 XML سليمة وصالحة طبقاً لمعايير OASIS والقاموس القياسي.');
     } else {
       errors.push('BR-KSA-08: يوجد خطأ في تركيب ملف XML.');
     }
@@ -590,17 +597,20 @@ export async function validateAndProcessRealZatcaInvoice(
     // If DOMParser not available, pass
   }
 
-  // Real ECDSA Cryptographic Stamp
-  const isRejected = errors.length > 0;
-  const cryptographicStamp = `ZATCA-ECDSA-${config.environment.toUpperCase()}-${sha256Hex.substring(0, 16).toUpperCase()}`;
-  const status: 'PASS' | 'WARNING' | 'ERROR' = isRejected ? 'ERROR' : warnings.length > 0 ? 'WARNING' : 'PASS';
-  const clearanceOrReportingStatus = isRejected ? 'REJECTED' : isB2B ? 'CLEARED' : 'REPORTED';
+  // Local Simulation Stamp
+  const isFailed = errors.length > 0;
+  const status: 'LOCAL_VALIDATION_PASSED' | 'LOCAL_VALIDATION_WARNING' | 'LOCAL_VALIDATION_FAILED' =
+    isFailed ? 'LOCAL_VALIDATION_FAILED' : warnings.length > 0 ? 'LOCAL_VALIDATION_WARNING' : 'LOCAL_VALIDATION_PASSED';
+
+  const cryptographicStamp = `LOCAL-SIMULATION-STAMP-${sha256Hex.substring(0, 16).toUpperCase()}`;
 
   return {
+    validationMode: 'local_simulation',
+    officialZatcaSubmission: false,
     status,
+    simulationStatus: 'SIMULATED',
     invoiceNumber: invoice.invoiceNumber,
     uuid: invoice.uuid,
-    clearanceOrReportingStatus,
     cryptographicStamp,
     hash,
     sha256Hex,
@@ -609,5 +619,11 @@ export async function validateAndProcessRealZatcaInvoice(
     errors,
     timestamp: new Date().toISOString(),
     ublXml,
+    disclaimerAr: 'لم يتم إرسال هذه الفاتورة إلى منصة فاتورة، وهذه النتيجة فحص محلي فقط ولا تمثل اعتمادًا رسميًا من هيئة الزكاة والضريبة والجمارك.',
+    disclaimerEn: 'This invoice was not submitted to FATOORA platform. This result is a local simulation only and does not represent official accreditation from ZATCA.',
+    clearanceOrReportingStatus: status,
   };
 }
+
+// Backward-compatibility alias
+export const validateAndProcessRealZatcaInvoice = validateAndSimulateZatcaInvoice;

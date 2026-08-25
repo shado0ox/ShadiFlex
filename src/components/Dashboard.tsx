@@ -15,7 +15,6 @@ import {
   Sparkles,
   FolderTree,
   Scale,
-  ShieldCheck,
   ChevronLeft,
 } from 'lucide-react';
 import {
@@ -31,7 +30,6 @@ import {
   Cell,
 } from 'recharts';
 import { SalesInvoice } from '../types/accounting';
-import { ShadiFlexLogo } from './Branding/ShadiFlexLogo';
 
 interface DashboardProps {
   onOpenNewSalesInvoice: () => void;
@@ -123,38 +121,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </button>
         </div>
       )}
-
-      {/* ShadiFlex Brand & ZATCA Phase 2 Quick Status Card */}
-      <div className="bg-linear-to-r from-slate-900 via-slate-800 to-slate-950 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-slate-700 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/15 shrink-0">
-            <ShadiFlexLogo size="sm" variant="white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm sm:text-base font-bold text-white">
-                منظومة ShadiFlex المتوافقة مع الفوترة الإلكترونية المرحلة الثانية
-              </h3>
-              <span className="bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full font-bold border border-emerald-500/30 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                ZATCA Phase 2 Active
-              </span>
-            </div>
-            <p className="text-xs text-slate-300 mt-0.5">
-              تكامل مباشر مع منصة فاتورة (FATOORA): تشفير QR بتسع وسوم، توقيع ECDSA الرقمي، واعتماد فوري للفواتير القياسية والمبسطة.
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setActiveTab('zatca_phase2')}
-          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-xs shrink-0 self-end md:self-auto"
-        >
-          <ShieldCheck className="w-4 h-4" />
-          <span>بوابة ربط فاتورة ZATCA</span>
-          <ChevronLeft className="w-3.5 h-3.5" />
-        </button>
-      </div>
 
       {/* Top Row: 4 Main Bento Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -13,9 +13,7 @@ import {
   Sparkles,
   Menu,
   Zap,
-  Languages,
   Globe,
-  ShieldCheck,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -99,20 +97,6 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Actions & Tools */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
-            {/* ZATCA Phase 2 Fatoora Hub Button */}
-            <button
-              onClick={() => setActiveTab('zatca_phase2')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                activeTab === 'zatca_phase2'
-                  ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm'
-                  : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-              }`}
-              title={language === 'ar' ? 'منظومة الربط والتكامل فاتورة ZATCA 2' : 'ZATCA Phase 2 FATOORA Portal'}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden lg:inline">{language === 'ar' ? 'منظومة فاتورة 2' : 'Fatoora Phase 2'}</span>
-              <span className="lg:hidden">ZATCA 2</span>
-            </button>
             {/* Language Switcher Toggle */}
             <button
               onClick={toggleLanguage}

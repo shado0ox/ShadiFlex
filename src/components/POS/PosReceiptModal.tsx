@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { SalesInvoice, CompanySettings, Branch, CashRegister } from '../../types/accounting';
-import { generateZatcaQrDataUrl } from '../../utils/zatca';
+import { generateZatcaPhase2QrDataUrl } from '../../utils/zatcaPhase2';
+import { ShadiFlexLogo } from '../Branding/ShadiFlexLogo';
 import { Printer, X, CheckCircle, Share2, Store, CreditCard, User, Clock, Building2 } from 'lucide-react';
 
 interface PosReceiptModalProps {
@@ -24,12 +25,13 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
 
   useEffect(() => {
     const fetchQr = async () => {
-      const qr = await generateZatcaQrDataUrl({
+      const qr = await generateZatcaPhase2QrDataUrl({
         sellerName: branch?.nameAr || invoice.branchName || companySettings.nameAr,
         vatNumber: branch?.vatNumber || companySettings.vatNumber,
         timestamp: `${invoice.issueDate}T${invoice.issueTime || '12:00:00'}Z`,
         totalAmount: invoice.totalAmount,
         vatAmount: invoice.vatTotal,
+        invoiceHash: invoice.hash,
       });
       setQrDataUrl(qr);
     };
@@ -99,6 +101,9 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
           >
             {/* Header: Company & Branch Info */}
             <div className="text-center pb-3 border-b border-dashed border-slate-400 space-y-1">
+              <div className="flex justify-center mb-1">
+                <ShadiFlexLogo size="sm" />
+              </div>
               <h2 className="text-sm font-black text-slate-900 leading-tight">
                 {companySettings.nameAr}
               </h2>

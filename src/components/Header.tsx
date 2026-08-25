@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAccounting } from '../context/AccountingContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DesignerSignature } from './Signature/DesignerSignature';
+import { ShadiFlexLogo } from './Branding/ShadiFlexLogo';
 import {
   FileText,
   ShoppingCart,
@@ -14,6 +15,7 @@ import {
   Zap,
   Languages,
   Globe,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -63,19 +65,27 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Brand Logo & Name */}
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-sm shadow-emerald-700/20 shrink-0">
-                <div className="w-4 h-4 border-2 border-white rotate-45 rounded-xs"></div>
+            <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+              <div
+                onClick={() => setActiveTab('zatca_phase2')}
+                className="cursor-pointer hover:opacity-90 transition shrink-0 bg-white border border-slate-200/90 px-3 py-1.5 rounded-xl shadow-xs flex items-center justify-center"
+                title={language === 'ar' ? 'منظومة ShadiFlex والربط مع هيئة الزكاة' : 'ShadiFlex ZATCA Hub'}
+              >
+                <ShadiFlexLogo size="sm" />
               </div>
-              <div className="min-w-0">
+
+              <div className="min-w-0 border-s border-slate-200 ps-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
                     {companyDisplayName}
                   </span>
-                  <span className="hidden sm:inline-flex bg-emerald-50 text-emerald-700 text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-emerald-200 items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => setActiveTab('zatca_phase2')}
+                    className="hidden sm:inline-flex bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-emerald-300 items-center gap-1 shrink-0 transition"
+                  >
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {t('header.zatca_certified', 'معتمد ZATCA')}
-                  </span>
+                    {language === 'ar' ? 'فاتورة المرحلة 2 (ZATCA)' : 'ZATCA Phase 2 Active'}
+                  </button>
                 </div>
                 <p className="text-[10px] sm:text-[11px] text-slate-400 hidden md:block truncate">
                   {t('header.vat_no', 'الرقم الضريبي')}:{' '}
@@ -89,6 +99,20 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Actions & Tools */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
+            {/* ZATCA Phase 2 Fatoora Hub Button */}
+            <button
+              onClick={() => setActiveTab('zatca_phase2')}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                activeTab === 'zatca_phase2'
+                  ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+              }`}
+              title={language === 'ar' ? 'منظومة الربط والتكامل فاتورة ZATCA 2' : 'ZATCA Phase 2 FATOORA Portal'}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden lg:inline">{language === 'ar' ? 'منظومة فاتورة 2' : 'Fatoora Phase 2'}</span>
+              <span className="lg:hidden">ZATCA 2</span>
+            </button>
             {/* Language Switcher Toggle */}
             <button
               onClick={toggleLanguage}

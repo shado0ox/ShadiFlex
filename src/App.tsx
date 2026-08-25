@@ -17,6 +17,7 @@ import { FinancialReports } from './components/Reports/FinancialReports';
 import { PartiesManager } from './components/Parties/PartiesManager';
 import { SimpleExpensesManager } from './components/SimpleExpenses/SimpleExpensesManager';
 import { CompanySettingsManager } from './components/Settings/CompanySettingsManager';
+import { ZatcaPhase2Hub } from './components/ZatcaPhase2/ZatcaPhase2Hub';
 import { AiAdvisor } from './components/AiAdvisor';
 import { PosTerminal } from './components/POS/PosTerminal';
 import { BranchesAndRegistersManager } from './components/POS/BranchesAndRegistersManager';
@@ -114,6 +115,8 @@ const MainLayout: React.FC = () => {
               )}
 
               {activeTab === 'settings' && <CompanySettingsManager />}
+
+              {activeTab === 'zatca_phase2' && <ZatcaPhase2Hub />}
 
               {activeTab === 'ai_advisor' && <AiAdvisor />}
 

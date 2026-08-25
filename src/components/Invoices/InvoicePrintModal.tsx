@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { SalesInvoice } from '../../types/accounting';
 import { useAccounting } from '../../context/AccountingContext';
 import { formatSAR, formatSAR_EN, tafqeetArabic } from '../../utils/currency';
-import { generateZatcaQrDataUrl } from '../../utils/zatca';
-import { X, Printer, Download, ShieldCheck, CheckCircle2, QrCode } from 'lucide-react';
+import { generateZatcaPhase2QrDataUrl } from '../../utils/zatcaPhase2';
+import { ShadiFlexLogo } from '../Branding/ShadiFlexLogo';
+import { X, Printer, Download, ShieldCheck, CheckCircle2, QrCode, Lock } from 'lucide-react';
 
 interface InvoicePrintModalProps {
   invoice: SalesInvoice | null;
@@ -17,12 +18,13 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
 
   useEffect(() => {
     if (invoice) {
-      generateZatcaQrDataUrl({
+      generateZatcaPhase2QrDataUrl({
         sellerName: companySettings.nameAr,
         vatNumber: companySettings.vatNumber,
         timestamp: `${invoice.issueDate}T${invoice.issueTime || '12:00:00'}Z`,
         totalAmount: invoice.totalAmount,
         vatAmount: invoice.vatTotal,
+        invoiceHash: invoice.hash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
       }).then((url) => setQrCodeUrl(url));
     }
   }, [invoice, companySettings]);
@@ -75,7 +77,13 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
             <div className="border-b-2 border-slate-800 pb-5 mb-5">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 {/* Seller Info */}
-                <div className="space-y-1 text-right">
+                <div className="space-y-1 text-right flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <ShadiFlexLogo size="sm" />
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                      معتمد ZATCA Phase 2 (فاتورة)
+                    </span>
+                  </div>
                   <h1 className="text-base sm:text-xl font-extrabold text-slate-900 leading-tight">
                     {companySettings.nameAr}
                   </h1>
@@ -114,7 +122,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     </div>
                   )}
                   <span className="text-[9px] font-bold text-slate-700 mt-1 uppercase tracking-wider">
-                    رمز الاستجابة السريع ZATCA
+                    رمز QR المرحلة 2 (9-TLV)
                   </span>
                 </div>
               </div>

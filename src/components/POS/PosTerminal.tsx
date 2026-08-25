@@ -7,6 +7,7 @@ import { PosReceiptModal } from './PosReceiptModal';
 import { PosShiftModal } from './PosShiftModal';
 import { PosParkedOrdersModal } from './PosParkedOrdersModal';
 import { PosCashDropModal } from './PosCashDropModal';
+import { ShadiFlexLogo } from '../Branding/ShadiFlexLogo';
 import {
   Search,
   Plus,
@@ -322,6 +323,10 @@ export const PosTerminal: React.FC = () => {
       {/* Top Header Bar: Branch, Register, Shift Indicator, Quick Actions */}
       <div className="bg-slate-900 text-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md z-10 shrink-0">
         <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center bg-white/10 px-2.5 py-1 rounded-xl border border-white/10">
+            <ShadiFlexLogo size="sm" variant="white" />
+          </div>
+
           <div className="flex items-center gap-2 px-3 py-1 bg-slate-800 border border-slate-700 rounded-xl">
             <Store className="w-4 h-4 text-emerald-400" />
             <select

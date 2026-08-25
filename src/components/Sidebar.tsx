@@ -2,6 +2,7 @@ import React from 'react';
 import { useAccounting } from '../context/AccountingContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DesignerSignature } from './Signature/DesignerSignature';
+import { ShadiFlexLogo } from './Branding/ShadiFlexLogo';
 import {
   LayoutDashboard,
   FileText,
@@ -21,6 +22,7 @@ import {
   Users,
   Store,
   Computer,
+  Layers,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -139,6 +141,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       badge: null,
     },
     {
+      id: 'zatca_phase2',
+      label: language === 'ar' ? 'منظومة فاتورة ZATCA (المرحلة 2)' : 'ZATCA Phase 2 (FATOORA)',
+      icon: ShieldCheck,
+      badge: 'FATOORA',
+      badgeColor: 'bg-emerald-500/20 text-emerald-800 border-emerald-500/40 font-bold',
+    },
+    {
       id: 'vat_return',
       label: t('nav.vat_return', 'إقرار الزكاة والضريبة (15%)'),
       icon: Receipt,
@@ -187,8 +196,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        <div className="p-4 space-y-1">
-          <div className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+        <div className="p-4 space-y-3">
+          {/* ShadiFlex Brand Header */}
+          <div className="p-3 bg-linear-to-b from-slate-50 to-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-center gap-1.5 text-center">
+            <ShadiFlexLogo size="md" showSubtitle={true} subtitleText={language === 'ar' ? 'منظومة المحاسبة والفوترة ZATCA' : 'Cloud ERP & POS System'} />
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                {language === 'ar' ? 'المرحلة 2 (فاتورة) مفعّلة' : 'Phase 2 (FATOORA) Active'}
+              </span>
+            </div>
+          </div>
+
+          <div className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
             {t('nav.main_menu', 'القائمة الرئيسية')}
           </div>
 

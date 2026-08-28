@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
-import { Branch, CashRegister, CashierShift } from '../../types/accounting';
+import { Branch, CashRegister, CashierShift, DependencyCheckResult } from '../../types/accounting';
 import { PosShiftModal } from './PosShiftModal';
+import { DependencyCheckModal } from '../Common/DependencyCheckModal';
 import {
   Store,
   Computer,
@@ -24,6 +25,7 @@ import {
   Lock,
   ArrowRight,
   TrendingUp,
+  Power,
 } from 'lucide-react';
 
 export const BranchesAndRegistersManager: React.FC = () => {
@@ -41,13 +43,22 @@ export const BranchesAndRegistersManager: React.FC = () => {
     addBranch,
     updateBranch,
     deleteBranch,
+    toggleBranchStatus,
+    checkBranchDependencies,
     addCashRegister,
     updateCashRegister,
     deleteCashRegister,
+    toggleCashRegisterStatus,
+    checkCashRegisterDependencies,
     setActiveTab,
   } = useAccounting();
 
   const [activeSubTab, setActiveSubTab] = useState<'branches' | 'registers' | 'shifts'>('branches');
+
+  // Dependency Modal State
+  const [depModalOpen, setDepModalOpen] = useState(false);
+  const [depTarget, setDepTarget] = useState<{ id: string; name: string; type: 'branch' | 'register'; isActive: boolean } | null>(null);
+  const [depCheckResult, setDepCheckResult] = useState<DependencyCheckResult | null>(null);
 
   // Branch Form Modal State
   const [showBranchModal, setShowBranchModal] = useState<boolean>(false);
@@ -156,9 +167,17 @@ export const BranchesAndRegistersManager: React.FC = () => {
   };
 
   const handleDeleteBranch = (branchId: string, branchName: string) => {
-    const assignedRegs = cashRegisters.filter((r) => r.branchId === branchId);
-    if (assignedRegs.length > 0) {
-      alert(`لا يمكن حذف هذا الفرع لوجود ${assignedRegs.length} صناديق كاشير مسجلة تابعة له! يرجى نقل أو حذف الصناديق أولاً.`);
+    const check = checkBranchDependencies(branchId);
+    const br = branches.find((b) => b.id === branchId);
+    if (!check.canDelete) {
+      setDepTarget({
+        id: branchId,
+        name: branchName,
+        type: 'branch',
+        isActive: br?.isActive !== false,
+      });
+      setDepCheckResult(check);
+      setDepModalOpen(true);
       return;
     }
     if (confirm(`هل أنت متأكد من حذف فرع (${branchName}) نهائياً؟`)) {
@@ -233,9 +252,17 @@ export const BranchesAndRegistersManager: React.FC = () => {
   };
 
   const handleDeleteRegister = (regId: string, regName: string) => {
-    const hasShift = cashierShifts.some((s) => s.registerId === regId && s.status === 'open');
-    if (hasShift) {
-      alert('لا يمكن حذف الصندوق لوجود وردية مفتوحة حالياً فيه!');
+    const check = checkCashRegisterDependencies(regId);
+    const reg = cashRegisters.find((r) => r.id === regId);
+    if (!check.canDelete) {
+      setDepTarget({
+        id: regId,
+        name: regName,
+        type: 'register',
+        isActive: reg?.isActive !== false,
+      });
+      setDepCheckResult(check);
+      setDepModalOpen(true);
       return;
     }
     if (confirm(`هل أنت متأكد من حذف صندوق الكاشير (${regName})؟`)) {
@@ -370,6 +397,20 @@ export const BranchesAndRegistersManager: React.FC = () => {
 
                       <div className="flex items-center gap-1">
                         <button
+                          type="button"
+                          onClick={() => toggleBranchStatus(branch.id)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 transition ${
+                            branch.isActive !== false
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'
+                          }`}
+                          title="تغيير حالة الفرع"
+                        >
+                          <Power className="w-2.5 h-2.5" />
+                          <span>{branch.isActive !== false ? 'نشط' : 'معطل'}</span>
+                        </button>
+
+                        <button
                           onClick={() => handleOpenEditBranch(branch)}
                           className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
                           title="تعديل بيانات الفرع"
@@ -468,6 +509,20 @@ export const BranchesAndRegistersManager: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleCashRegisterStatus(register.id)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 transition ${
+                            register.isActive !== false
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'
+                          }`}
+                          title="تغيير حالة الصندوق"
+                        >
+                          <Power className="w-2.5 h-2.5" />
+                          <span>{register.isActive !== false ? 'نشط' : 'معطل'}</span>
+                        </button>
+
                         <button
                           onClick={() => handleOpenEditRegister(register)}
                           className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
@@ -1013,6 +1068,34 @@ export const BranchesAndRegistersManager: React.FC = () => {
           onStartShift={() => {}}
           onCloseShift={() => {}}
           onClose={() => setSelectedShiftForReport(null)}
+        />
+      )}
+
+      {/* Dependency Check Modal */}
+      {depModalOpen && depTarget && depCheckResult && (
+        <DependencyCheckModal
+          isOpen={depModalOpen}
+          onClose={() => {
+            setDepModalOpen(false);
+            setDepTarget(null);
+            setDepCheckResult(null);
+          }}
+          title={
+            depTarget.type === 'branch'
+              ? `تعذر حذف الفرع: ${depTarget.name}`
+              : `تعذر حذف نقطة/صندوق الكاشير: ${depTarget.name}`
+          }
+          entityName={depTarget.name}
+          entityType={depTarget.type === 'branch' ? 'الفرع' : 'صندوق الكاشير'}
+          checkResult={depCheckResult}
+          onToggleDeactivate={() => {
+            if (depTarget.type === 'branch') {
+              toggleBranchStatus(depTarget.id);
+            } else {
+              toggleCashRegisterStatus(depTarget.id);
+            }
+          }}
+          isCurrentlyActive={depTarget.isActive}
         />
       )}
     </div>

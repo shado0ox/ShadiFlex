@@ -7,7 +7,7 @@ import {
   InvoiceItem,
 } from '../../types/accounting';
 import { formatSAR, tafqeetArabic } from '../../utils/currency';
-import { X, Plus, Trash2, CheckCircle2, ShieldCheck, Sparkles, Building, User } from 'lucide-react';
+import { X, Plus, Trash2, CheckCircle2, ShieldCheck, Sparkles, Building, User, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface InvoiceFormModalProps {
@@ -58,6 +58,7 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onCl
   ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -146,14 +147,15 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onCl
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    setErrorMessage(null);
 
     if (!customerName.trim()) {
-      alert('يرجى إدخال اسم العميل');
+      setErrorMessage('يرجى إدخال اسم العميل');
       return;
     }
 
     if (items.length === 0 || totalAmount <= 0) {
-      alert('يرجى إضافة بنود للفاتورة وقيم صحيحة');
+      setErrorMessage('يرجى إضافة بنود للفاتورة وقيم صحيحة');
       return;
     }
 
@@ -192,9 +194,9 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onCl
 
       onSuccess(invoiceNumber);
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('حدث خطأ أثناء إصدار الفاتورة');
+      setErrorMessage(err?.message || 'حدث خطأ أثناء إصدار الفاتورة');
     } finally {
       setIsSubmitting(false);
     }
@@ -221,6 +223,21 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onCl
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Error Banner */}
+        {errorMessage && (
+          <div className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800 text-xs">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="flex-1 font-medium leading-relaxed">{errorMessage}</div>
+            <button
+              type="button"
+              onClick={() => setErrorMessage(null)}
+              className="text-rose-500 hover:text-rose-700 font-bold"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 text-right">
@@ -363,8 +380,12 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onCl
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {items.map((item, index) => (
-                    <tr key={item.id} className="hover:bg-slate-50">
+                  {items.map((item, index) => {
+                    const matchedInv = inventory.find((inv) => inv.id === item.itemId);
+                    const isExceeding = matchedInv ? item.quantity > matchedInv.currentStock : false;
+
+                    return (
+                    <tr key={item.id} className={`hover:bg-slate-50 ${isExceeding ? 'bg-rose-50/40' : ''}`}>
                       <td className="p-2">
                         <div className="space-y-1">
                           <select
@@ -390,15 +411,24 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onCl
                         </div>
                       </td>
                       <td className="p-2">
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={item.quantity}
-                          onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 text-center font-mono"
-                          required
-                        />
+                        <div className="space-y-1">
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
+                            className={`w-full bg-slate-50 border rounded-lg px-2 py-1 text-xs text-slate-900 text-center font-mono ${
+                              isExceeding ? 'border-rose-500 bg-rose-50 text-rose-900 ring-1 ring-rose-500' : 'border-slate-200'
+                            }`}
+                            required
+                          />
+                          {matchedInv && (
+                            <span className={`block text-[10px] text-center font-medium ${isExceeding ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+                              المتاح: {matchedInv.currentStock}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-2">
                         <input
@@ -449,7 +479,8 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onCl
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

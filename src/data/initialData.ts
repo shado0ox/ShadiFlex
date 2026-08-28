@@ -55,7 +55,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     iban: 'SA4480000456608010123456',
     accountHolder: 'شركة رواسي الأفق للتجارة',
   },
-  invoiceFooterNotesAr: 'شكراً لتعاملكم معنا. هذه الفاتورة تم إنشاؤها إلكترونياً وتعتبر مستنداً محاسبياً وضريبياً نظامياً معتمداً.',
+  invoiceFooterNotesAr: 'شكراً لتعاملكم معنا. هذه الفاتورة تم إنشاؤها إلكترونياً وتعتبر مستنداً محاسبياً وضريبياً نظامياً.',
   invoiceFooterNotesEn: 'Thank you for your business. This invoice was generated electronically and is an official tax document.',
 };
 
@@ -195,8 +195,8 @@ export const INITIAL_INVENTORY: InventoryItem[] = [
     id: 'item_4',
     sku: 'ACC-SW-L1',
     barcode: '628100100204',
-    nameAr: 'ترخيص برنامج محاسبي سحابي ZATCA معتمد',
-    nameEn: 'ZATCA Certified ERP License',
+    nameAr: 'ترخيص برنامج محاسبي سحابي متوافق مع ZATCA',
+    nameEn: 'ZATCA Compliant ERP License',
     category: 'برمجيات وتراخيص',
     unit: 'رخصة',
     purchasePrice: 800,
@@ -267,7 +267,7 @@ export const INITIAL_SALES_INVOICES: SalesInvoice[] = [
       {
         id: 'item_row_2',
         itemId: 'item_4',
-        nameAr: 'ترخيص برنامج محاسبي سحابي ZATCA معتمد',
+        nameAr: 'ترخيص برنامج محاسبي سحابي متوافق مع ZATCA',
         quantity: 3,
         unit: 'رخصة',
         unitPrice: 1400,
@@ -288,7 +288,7 @@ export const INITIAL_SALES_INVOICES: SalesInvoice[] = [
     paidAmount: 0,
     remainingAmount: 12075,
     zatcaQrBase64: sampleTlv,
-    status: 'issued',
+    status: 'posted',
     notes: 'فاتورة ضريبية مستحقة الدفع خلال 30 يوماً من تاريخ الإصدار.',
   },
   {
@@ -346,7 +346,7 @@ export const INITIAL_SALES_INVOICES: SalesInvoice[] = [
       totalAmount: 3404.0,
       vatAmount: 444.0,
     }),
-    status: 'issued',
+    status: 'posted',
     notes: 'تم السداد بالكامل عبر مدى نقاط البيع.',
   },
 ];
@@ -383,6 +383,7 @@ export const INITIAL_PURCHASE_INVOICES: PurchaseInvoice[] = [
     paymentMethod: 'bank_transfer',
     paymentStatus: 'paid',
     paidAmount: 13800,
+    status: 'posted',
     notes: 'توريد دفعة أجهزة نقاط البيع للمستودع الرئيسي.',
   },
 ];
@@ -521,7 +522,7 @@ export const INITIAL_DEBIT_CREDIT_NOTES: DebitCreditNote[] = [
       vatAmount: 420,
     }),
     journalEntryId: 'jv_cn_1',
-    status: 'issued',
+    status: 'posted',
     notes: 'تم فحص الشاشة وإعادتها للمستودع وتخفيض رصيد العميل بناء على إشعار دائن ZATCA',
   },
   {
@@ -571,7 +572,7 @@ export const INITIAL_DEBIT_CREDIT_NOTES: DebitCreditNote[] = [
       vatAmount: 465,
     }),
     journalEntryId: 'jv_dn_1',
-    status: 'issued',
+    status: 'posted',
     notes: 'إشعار مدين للمورد لتخفيض مستحقاته نظير إرجاع جهاز بخلل مصنعي',
   },
 ];
@@ -602,6 +603,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     receivedBy: 'عبدالرحمن العتيبي',
     paidBy: 'سالم الشمري',
     approvedBy: 'سعود المحاسب',
+    status: 'posted',
     createdAt: '2026-08-22T12:00:00Z',
   },
   {
@@ -629,6 +631,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     receivedBy: 'محمود الصالح (مندوب المورد)',
     paidBy: 'سعود المحاسب',
     approvedBy: 'المدير المالي',
+    status: 'posted',
     createdAt: '2026-08-23T14:30:00Z',
   },
   {
@@ -651,6 +654,7 @@ export const INITIAL_VOUCHERS: Voucher[] = [
     receivedBy: 'فهد المطيري',
     paidBy: 'أمين الخزينة',
     approvedBy: 'المدير التنفيذي',
+    status: 'posted',
     createdAt: '2026-08-24T09:15:00Z',
   },
 ];
@@ -678,7 +682,7 @@ export const INITIAL_SIMPLE_EXPENSES: SimpleExpenseInvoice[] = [
     paidThroughAccountNameAr: 'مصرف الراجحي - الحساب الجاري',
     employeeName: 'سعود المحاسب',
     notes: 'سداد عن طريق خدمة سداد الإلكترونية (حساب 30018921)',
-    status: 'paid',
+    status: 'posted',
     createdAt: '2026-08-15T10:00:00Z',
   },
   {
@@ -703,7 +707,7 @@ export const INITIAL_SIMPLE_EXPENSES: SimpleExpenseInvoice[] = [
     paidThroughAccountNameAr: 'حساب وسيط نقاط البيع وبطاقات مدى POS',
     employeeName: 'فهد المطيري',
     notes: 'باقة الأعمال 500 ميجا فايبر رقم الحساب 92001458',
-    status: 'paid',
+    status: 'posted',
     createdAt: '2026-08-18T14:20:00Z',
   },
   {
@@ -728,7 +732,7 @@ export const INITIAL_SIMPLE_EXPENSES: SimpleExpenseInvoice[] = [
     paidThroughAccountNameAr: 'الصندوق الرئيسي (النقدية بالخزينة)',
     employeeName: 'عبدالرحمن العتيبي (مندوب التوزيع)',
     notes: 'تعبئة سيارات تويوتا هايس التابعة لقسم التوصيل (فاتورة ضريبية مبسطة)',
-    status: 'paid',
+    status: 'posted',
     createdAt: '2026-08-20T17:30:00Z',
   },
   {
@@ -753,7 +757,7 @@ export const INITIAL_SIMPLE_EXPENSES: SimpleExpenseInvoice[] = [
     paidThroughAccountNameAr: 'حساب وسيط نقاط البيع وبطاقات مدى POS',
     employeeName: 'سعود المحاسب',
     notes: 'مستلزمات مكتبية للإدارة المالية وقسم المبيعات',
-    status: 'paid',
+    status: 'posted',
     createdAt: '2026-08-21T11:45:00Z',
   },
   {
@@ -778,7 +782,7 @@ export const INITIAL_SIMPLE_EXPENSES: SimpleExpenseInvoice[] = [
     paidThroughAccountNameAr: 'مصرف الراجحي - الحساب الجاري',
     employeeName: 'مهندس الموقع',
     notes: 'صيانة 4 وحدات تكييف كاسيت مركزية شامل الضمان 6 أشهر',
-    status: 'paid',
+    status: 'posted',
     createdAt: '2026-08-22T16:00:00Z',
   },
   {
@@ -802,7 +806,7 @@ export const INITIAL_SIMPLE_EXPENSES: SimpleExpenseInvoice[] = [
     paidThroughAccountCode: '110101',
     paidThroughAccountNameAr: 'الصندوق الرئيسي (النقدية بالخزينة)',
     notes: 'سداد استهلاك مياه العداد رقم 10293847',
-    status: 'paid',
+    status: 'posted',
     createdAt: '2026-08-23T10:15:00Z',
   },
 ];

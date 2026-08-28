@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
-import { Account, AccountType, AccountNature } from '../../types/accounting';
+import { Account, AccountType, AccountNature, DependencyCheckResult } from '../../types/accounting';
 import { formatSAR } from '../../utils/currency';
 import { AccountStatementModal } from './AccountStatementModal';
+import { DependencyCheckModal } from '../Common/DependencyCheckModal';
 import {
   FolderTree,
   Plus,
@@ -16,10 +17,18 @@ import {
   Trash2,
   X,
   CheckCircle2,
+  Power,
 } from 'lucide-react';
 
 export const ChartOfAccountsView: React.FC = () => {
-  const { accounts, addAccount, updateAccount, deleteAccount } = useAccounting();
+  const {
+    accounts,
+    addAccount,
+    updateAccount,
+    deleteAccount,
+    toggleAccountStatus,
+    checkAccountDependencies,
+  } = useAccounting();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | AccountType>('all');
@@ -28,6 +37,11 @@ export const ChartOfAccountsView: React.FC = () => {
   // Add / Edit Account Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+
+  // Dependency Modal State
+  const [depModalOpen, setDepModalOpen] = useState(false);
+  const [depTargetAccount, setDepTargetAccount] = useState<Account | null>(null);
+  const [depCheckResult, setDepCheckResult] = useState<DependencyCheckResult | null>(null);
 
   const [code, setCode] = useState('');
   const [nameAr, setNameAr] = useState('');
@@ -75,6 +89,32 @@ export const ChartOfAccountsView: React.FC = () => {
     setNameEn('');
     setIsTransactional(true);
     setModalOpen(true);
+  };
+
+  const handleOpenEdit = (acc: Account) => {
+    setEditingAccount(acc);
+    setCode(acc.code);
+    setNameAr(acc.nameAr);
+    setNameEn(acc.nameEn || '');
+    setType(acc.type);
+    setNature(acc.nature);
+    setParentId(acc.parentId || '');
+    setIsTransactional(acc.isTransactional);
+    setModalOpen(true);
+  };
+
+  const handleDeleteAccount = (acc: Account) => {
+    const check = checkAccountDependencies(acc.id);
+    if (!check.canDelete) {
+      setDepTargetAccount(acc);
+      setDepCheckResult(check);
+      setDepModalOpen(true);
+      return;
+    }
+
+    if (confirm(`هل أنت متأكد من حذف الحساب (${acc.code} - ${acc.nameAr}) نهائياً؟`)) {
+      deleteAccount(acc.id);
+    }
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -127,16 +167,19 @@ export const ChartOfAccountsView: React.FC = () => {
     const children = accounts.filter((a) => a.parentId === acc.id);
     const hasChildren = children.length > 0;
     const isExpanded = !!expandedCodes[acc.code];
+    const isAccActive = acc.isActive !== false;
 
     return (
       <div key={acc.id} className="text-xs">
         <div
-          className={`flex items-center justify-between p-3.5 rounded-xl transition hover:bg-slate-50 border ${
+          className={`flex items-center justify-between p-3 rounded-xl transition hover:bg-slate-50 border ${
+            !isAccActive ? 'bg-slate-50/60 opacity-75' : ''
+          } ${
             acc.level === 1
               ? 'bg-slate-100/90 border-slate-200 font-bold text-slate-900 mb-2 shadow-2xs'
               : acc.level === 2
               ? 'bg-slate-50/80 border-slate-200/80 font-semibold text-slate-800 mb-1'
-              : 'border-transparent text-slate-700'
+              : 'border-slate-100 text-slate-700 mb-1 bg-white'
           }`}
           style={{ marginRight: `${depth * 20}px` }}
         >
@@ -157,8 +200,13 @@ export const ChartOfAccountsView: React.FC = () => {
             </span>
 
             <div>
-              <span className="text-sm font-medium text-slate-900">{acc.nameAr}</span>
-              {acc.nameEn && <span className="text-[10px] text-slate-400 mr-2 font-sans">({acc.nameEn})</span>}
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium text-slate-900">{acc.nameAr}</span>
+                {!isAccActive && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-200 text-slate-600 font-normal">معطل</span>
+                )}
+              </div>
+              {acc.nameEn && <span className="text-[10px] text-slate-400 font-sans">({acc.nameEn})</span>}
             </div>
 
             <span
@@ -170,18 +218,33 @@ export const ChartOfAccountsView: React.FC = () => {
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {acc.isTransactional ? (
               <span className="font-mono font-bold text-slate-900 text-sm">{formatSAR(acc.balance)}</span>
             ) : (
               <span className="text-[10px] text-slate-400 font-medium">حساب رئيسي مجمع</span>
             )}
 
-            <div className="flex items-center gap-1.5">
+            {/* Status toggle */}
+            <button
+              type="button"
+              onClick={() => toggleAccountStatus(acc.id)}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 transition ${
+                isAccActive
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'
+              }`}
+              title="تغيير حالة تفعيل الحساب"
+            >
+              <Power className="w-2.5 h-2.5" />
+              <span>{isAccActive ? 'نشط' : 'معطل'}</span>
+            </button>
+
+            <div className="flex items-center gap-1">
               {acc.isTransactional && (
                 <button
                   onClick={() => setStatementAccount(acc)}
-                  className="px-2.5 py-1 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-[11px] font-bold transition"
+                  className="px-2 py-1 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-[11px] font-bold transition"
                   title="كشف حساب"
                 >
                   كشف حساب
@@ -194,6 +257,22 @@ export const ChartOfAccountsView: React.FC = () => {
                 title="إضافة حساب فرعي تحته"
               >
                 <Plus className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                onClick={() => handleOpenEdit(acc)}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 transition"
+                title="تعديل الحساب"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                onClick={() => handleDeleteAccount(acc)}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 transition"
+                title="حذف الحساب"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -379,6 +458,25 @@ export const ChartOfAccountsView: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      {/* Dependency Check Modal */}
+      {depModalOpen && depTargetAccount && depCheckResult && (
+        <DependencyCheckModal
+          isOpen={depModalOpen}
+          onClose={() => {
+            setDepModalOpen(false);
+            setDepTargetAccount(null);
+            setDepCheckResult(null);
+          }}
+          title={`تعذر حذف الحساب المحاسبي: ${depTargetAccount.code} - ${depTargetAccount.nameAr}`}
+          entityName={`${depTargetAccount.code} - ${depTargetAccount.nameAr}`}
+          entityType="الحساب المحاسبي"
+          checkResult={depCheckResult}
+          onToggleDeactivate={() => {
+            toggleAccountStatus(depTargetAccount.id);
+          }}
+          isCurrentlyActive={depTargetAccount.isActive !== false}
+        />
       )}
     </div>
   );

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
-import { Customer, Supplier } from '../../types/accounting';
+import { Customer, Supplier, DependencyCheckResult } from '../../types/accounting';
 import { formatSAR } from '../../utils/currency';
+import { DependencyCheckModal } from '../Common/DependencyCheckModal';
 import {
   Users,
   Truck,
@@ -14,6 +15,8 @@ import {
   Trash2,
   X,
   CheckCircle2,
+  Power,
+  Filter,
 } from 'lucide-react';
 
 export const PartiesManager: React.FC = () => {
@@ -23,17 +26,27 @@ export const PartiesManager: React.FC = () => {
     addCustomer,
     updateCustomer,
     deleteCustomer,
+    toggleCustomerStatus,
+    checkCustomerDependencies,
     addSupplier,
     updateSupplier,
     deleteSupplier,
+    toggleSupplierStatus,
+    checkSupplierDependencies,
   } = useAccounting();
 
   const [activeTab, setActiveTab] = useState<'customers' | 'suppliers'>('customers');
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
-  // Modal State
+  // Modal State for Add/Edit
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Customer | Supplier | null>(null);
+
+  // Dependency Modal State
+  const [depModalOpen, setDepModalOpen] = useState(false);
+  const [depTarget, setDepTarget] = useState<{ id: string; name: string; type: 'customer' | 'supplier'; isActive: boolean } | null>(null);
+  const [depCheckResult, setDepCheckResult] = useState<DependencyCheckResult | null>(null);
 
   // Form Fields
   const [nameAr, setNameAr] = useState('');
@@ -78,6 +91,32 @@ export const PartiesManager: React.FC = () => {
       setCity(s.city || 'الرياض');
     }
     setModalOpen(true);
+  };
+
+  const handleDeleteRequest = (item: Customer | Supplier, type: 'customer' | 'supplier') => {
+    const check = type === 'customer' 
+      ? checkCustomerDependencies(item.id) 
+      : checkSupplierDependencies(item.id);
+
+    if (!check.canDelete) {
+      setDepTarget({
+        id: item.id,
+        name: item.nameAr,
+        type,
+        isActive: item.isActive !== false,
+      });
+      setDepCheckResult(check);
+      setDepModalOpen(true);
+      return;
+    }
+
+    if (confirm(`هل أنت متأكد من حذف (${item.nameAr}) نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.`)) {
+      if (type === 'customer') {
+        deleteCustomer(item.id);
+      } else {
+        deleteSupplier(item.id);
+      }
+    }
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -142,19 +181,27 @@ export const PartiesManager: React.FC = () => {
     setModalOpen(false);
   };
 
-  const filteredCustomers = customers.filter(
-    (c) =>
+  const filteredCustomers = customers.filter((c) => {
+    const matchesSearch =
       c.nameAr.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (c.vatNumber && c.vatNumber.includes(searchTerm)) ||
-      (c.phone && c.phone.includes(searchTerm))
-  );
+      (c.phone && c.phone.includes(searchTerm));
+    if (!matchesSearch) return false;
+    if (statusFilter === 'active') return c.isActive !== false;
+    if (statusFilter === 'inactive') return c.isActive === false;
+    return true;
+  });
 
-  const filteredSuppliers = suppliers.filter(
-    (s) =>
+  const filteredSuppliers = suppliers.filter((s) => {
+    const matchesSearch =
       s.nameAr.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.vatNumber && s.vatNumber.includes(searchTerm)) ||
-      (s.phone && s.phone.includes(searchTerm))
-  );
+      (s.phone && s.phone.includes(searchTerm));
+    if (!matchesSearch) return false;
+    if (statusFilter === 'active') return s.isActive !== false;
+    if (statusFilter === 'inactive') return s.isActive === false;
+    return true;
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -207,9 +254,9 @@ export const PartiesManager: React.FC = () => {
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-        <div className="relative">
+      {/* Search & Filter Bar */}
+      <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row items-center gap-3">
+        <div className="relative flex-1 w-full">
           <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
           <input
             type="text"
@@ -219,6 +266,32 @@ export const PartiesManager: React.FC = () => {
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
+        <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`px-3 py-1.5 rounded-lg transition font-medium ${
+              statusFilter === 'all' ? 'bg-white shadow-xs font-bold text-slate-900' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            الكل
+          </button>
+          <button
+            onClick={() => setStatusFilter('active')}
+            className={`px-3 py-1.5 rounded-lg transition font-medium ${
+              statusFilter === 'active' ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            النشطين فقط
+          </button>
+          <button
+            onClick={() => setStatusFilter('inactive')}
+            className={`px-3 py-1.5 rounded-lg transition font-medium ${
+              statusFilter === 'inactive' ? 'bg-rose-50 text-rose-700 font-bold' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            المعطلين
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -227,11 +300,12 @@ export const PartiesManager: React.FC = () => {
           <table className="w-full text-right text-xs">
             <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
               <tr>
-                <th className="p-3.5">الاسم التجاري / العميل</th>
+                <th className="p-3.5">الاسم التجاري / الجهة</th>
                 <th className="p-3.5">الرقم الضريبي (15 رقماً)</th>
                 <th className="p-3.5">السجل التجاري</th>
                 <th className="p-3.5">الهاتف والتواصل</th>
                 <th className="p-3.5">المدينة</th>
+                <th className="p-3.5">الحالة</th>
                 <th className="p-3.5">الرصيد القائم</th>
                 <th className="p-3.5 text-center">إجراءات</th>
               </tr>
@@ -240,90 +314,128 @@ export const PartiesManager: React.FC = () => {
               {activeTab === 'customers' ? (
                 filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-400">
+                    <td colSpan={8} className="p-8 text-center text-slate-400">
                       لا يوجد عملاء مطابقين.
                     </td>
                   </tr>
                 ) : (
-                  filteredCustomers.map((cust) => (
-                    <tr key={cust.id} className="hover:bg-slate-50 transition">
-                      <td className="p-3.5">
-                        <div className="font-bold text-slate-900">{cust.nameAr}</div>
-                        {cust.nameEn && <div className="text-[11px] text-slate-400 font-sans">{cust.nameEn}</div>}
-                      </td>
-                      <td className="p-3.5 font-mono text-emerald-700 font-semibold">{cust.vatNumber || '-'}</td>
-                      <td className="p-3.5 font-mono text-slate-500">{cust.crNumber || '-'}</td>
-                      <td className="p-3.5 font-mono text-slate-600">{cust.phone || '-'}</td>
-                      <td className="p-3.5 text-slate-500">{cust.address?.city || 'الرياض'}</td>
-                      <td className="p-3.5 font-mono font-bold text-slate-900">{formatSAR(cust.currentBalance)}</td>
-                      <td className="p-3.5">
-                        <div className="flex items-center justify-center gap-1.5">
+                  filteredCustomers.map((cust) => {
+                    const isCustActive = cust.isActive !== false;
+                    return (
+                      <tr key={cust.id} className={`hover:bg-slate-50 transition ${!isCustActive ? 'bg-slate-50/60 opacity-75' : ''}`}>
+                        <td className="p-3.5">
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>{cust.nameAr}</span>
+                            {!isCustActive && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-200 text-slate-600 font-normal">معطل</span>
+                            )}
+                          </div>
+                          {cust.nameEn && <div className="text-[11px] text-slate-400 font-sans">{cust.nameEn}</div>}
+                        </td>
+                        <td className="p-3.5 font-mono text-emerald-700 font-semibold">{cust.vatNumber || '-'}</td>
+                        <td className="p-3.5 font-mono text-slate-500">{cust.crNumber || '-'}</td>
+                        <td className="p-3.5 font-mono text-slate-600">{cust.phone || '-'}</td>
+                        <td className="p-3.5 text-slate-500">{cust.address?.city || 'الرياض'}</td>
+                        <td className="p-3.5">
                           <button
-                            onClick={() => handleOpenEdit(cust)}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 transition"
-                            title="تعديل"
+                            type="button"
+                            onClick={() => toggleCustomerStatus(cust.id)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition ${
+                              isCustActive
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'
+                            }`}
+                            title="انقر لتغيير حالة التنشيط"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Power className="w-3 h-3" />
+                            <span>{isCustActive ? 'نشط' : 'معطل'}</span>
                           </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`هل أنت متأكد من حذف (${cust.nameAr})؟`)) {
-                                deleteCustomer(cust.id);
-                              }
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition"
-                            title="حذف"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="p-3.5 font-mono font-bold text-slate-900">{formatSAR(cust.balance || 0)}</td>
+                        <td className="p-3.5">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenEdit(cust)}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 transition"
+                              title="تعديل"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRequest(cust, 'customer')}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition"
+                              title="حذف"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )
               ) : (
                 filteredSuppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-400">
+                    <td colSpan={8} className="p-8 text-center text-slate-400">
                       لا يوجد موردون مطابقون.
                     </td>
                   </tr>
                 ) : (
-                  filteredSuppliers.map((supp) => (
-                    <tr key={supp.id} className="hover:bg-slate-50 transition">
-                      <td className="p-3.5">
-                        <div className="font-bold text-slate-900">{supp.nameAr}</div>
-                        {supp.nameEn && <div className="text-[11px] text-slate-400 font-sans">{supp.nameEn}</div>}
-                      </td>
-                      <td className="p-3.5 font-mono text-blue-700 font-semibold">{supp.vatNumber || '-'}</td>
-                      <td className="p-3.5 font-mono text-slate-500">{supp.crNumber || '-'}</td>
-                      <td className="p-3.5 font-mono text-slate-600">{supp.phone || '-'}</td>
-                      <td className="p-3.5 text-slate-500">{supp.city || 'الرياض'}</td>
-                      <td className="p-3.5 font-mono font-bold text-slate-900">{formatSAR(supp.currentBalance)}</td>
-                      <td className="p-3.5">
-                        <div className="flex items-center justify-center gap-1.5">
+                  filteredSuppliers.map((supp) => {
+                    const isSuppActive = supp.isActive !== false;
+                    return (
+                      <tr key={supp.id} className={`hover:bg-slate-50 transition ${!isSuppActive ? 'bg-slate-50/60 opacity-75' : ''}`}>
+                        <td className="p-3.5">
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>{supp.nameAr}</span>
+                            {!isSuppActive && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-200 text-slate-600 font-normal">معطل</span>
+                            )}
+                          </div>
+                          {supp.nameEn && <div className="text-[11px] text-slate-400 font-sans">{supp.nameEn}</div>}
+                        </td>
+                        <td className="p-3.5 font-mono text-blue-700 font-semibold">{supp.vatNumber || '-'}</td>
+                        <td className="p-3.5 font-mono text-slate-500">{supp.crNumber || '-'}</td>
+                        <td className="p-3.5 font-mono text-slate-600">{supp.phone || '-'}</td>
+                        <td className="p-3.5 text-slate-500">{supp.city || 'الرياض'}</td>
+                        <td className="p-3.5">
                           <button
-                            onClick={() => handleOpenEdit(supp)}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 transition"
-                            title="تعديل"
+                            type="button"
+                            onClick={() => toggleSupplierStatus(supp.id)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition ${
+                              isSuppActive
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'
+                            }`}
+                            title="انقر لتغيير حالة التنشيط"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Power className="w-3 h-3" />
+                            <span>{isSuppActive ? 'نشط' : 'معطل'}</span>
                           </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`هل أنت متأكد من حذف (${supp.nameAr})؟`)) {
-                                deleteSupplier(supp.id);
-                              }
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition"
-                            title="حذف"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="p-3.5 font-mono font-bold text-slate-900">{formatSAR(supp.balance || 0)}</td>
+                        <td className="p-3.5">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenEdit(supp)}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 transition"
+                              title="تعديل"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRequest(supp, 'supplier')}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition"
+                              title="حذف"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )
               )}
             </tbody>
@@ -455,6 +567,29 @@ export const PartiesManager: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      {/* Dependency Check Modal */}
+      {depModalOpen && depTarget && depCheckResult && (
+        <DependencyCheckModal
+          isOpen={depModalOpen}
+          onClose={() => {
+            setDepModalOpen(false);
+            setDepTarget(null);
+            setDepCheckResult(null);
+          }}
+          title={`تعذر حذف ${depTarget.type === 'customer' ? 'العميل' : 'المورد'}: ${depTarget.name}`}
+          entityName={depTarget.name}
+          entityType={depTarget.type === 'customer' ? 'العميل' : 'المورد'}
+          checkResult={depCheckResult}
+          onToggleDeactivate={() => {
+            if (depTarget.type === 'customer') {
+              toggleCustomerStatus(depTarget.id);
+            } else {
+              toggleSupplierStatus(depTarget.id);
+            }
+          }}
+          isCurrentlyActive={depTarget.isActive}
+        />
       )}
     </div>
   );

@@ -42,8 +42,8 @@ export const INITIAL_ZATCA_PHASE2_CONFIG: ZatcaPhase2Config = {
   publicKeyPem: '',
   ccsidSecret: '',
   ccsidToken: '',
-  pcsidSecret: 'demo_simulation_secret_not_active',
-  pcsidToken: 'demo_simulation_token_not_active',
+  pcsidSecret: '',
+  pcsidToken: '',
   otp: '',
   onboardingStatus: 'simulation_ready',
   complianceChecks: {

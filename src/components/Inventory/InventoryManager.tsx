@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
-import { InventoryItem } from '../../types/accounting';
+import { InventoryItem, DependencyCheckResult } from '../../types/accounting';
 import { formatSAR } from '../../utils/currency';
+import { DependencyCheckModal } from '../Common/DependencyCheckModal';
 import {
   Package,
   Plus,
@@ -15,6 +16,7 @@ import {
   CheckCircle2,
   Trash2,
   Edit2,
+  Power,
 } from 'lucide-react';
 
 export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = () => {
@@ -24,16 +26,25 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
     addInventoryItem,
     updateInventoryItem,
     deleteInventoryItem,
+    toggleInventoryItemStatus,
+    checkInventoryItemDependencies,
     adjustInventoryStock,
+    checkDirectStockEditAllowed,
   } = useAccounting();
 
   const [activeTab, setActiveTab] = useState<'items' | 'movements'>('items');
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   // Modal State for Add / Edit
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+
+  // Dependency Modal State
+  const [depModalOpen, setDepModalOpen] = useState(false);
+  const [depTargetItem, setDepTargetItem] = useState<InventoryItem | null>(null);
+  const [depCheckResult, setDepCheckResult] = useState<DependencyCheckResult | null>(null);
 
   // Form State
   const [sku, setSku] = useState('');
@@ -63,7 +74,11 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
 
     const matchesCat = categoryFilter === 'all' || item.category === categoryFilter;
 
-    return matchesSearch && matchesCat;
+    if (!matchesSearch || !matchesCat) return false;
+    if (statusFilter === 'active') return item.isActive !== false;
+    if (statusFilter === 'inactive') return item.isActive === false;
+
+    return true;
   });
 
   const totalValuationCost = inventory.reduce((sum, i) => sum + i.currentStock * i.purchasePrice, 0);
@@ -100,39 +115,58 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
     setItemModalOpen(true);
   };
 
+  const handleDeleteItem = (item: InventoryItem) => {
+    const check = checkInventoryItemDependencies(item.id);
+    if (!check.canDelete) {
+      setDepTargetItem(item);
+      setDepCheckResult(check);
+      setDepModalOpen(true);
+      return;
+    }
+
+    if (confirm(`هل أنت متأكد من حذف الصنف (${item.nameAr}) نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.`)) {
+      deleteInventoryItem(item.id);
+    }
+  };
+
   const handleSaveItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameAr.trim()) return;
 
-    if (editingItem) {
-      updateInventoryItem(editingItem.id, {
-        sku,
-        barcode,
-        nameAr,
-        nameEn,
-        category,
-        unit,
-        purchasePrice,
-        salePrice,
-        currentStock,
-        minStockAlert,
-      });
-    } else {
-      addInventoryItem({
-        sku,
-        barcode,
-        nameAr,
-        nameEn,
-        category,
-        unit,
-        purchasePrice,
-        salePrice,
-        currentStock,
-        minStockAlert,
-        vatRate: 0.15,
-      });
+    try {
+      if (editingItem) {
+        updateInventoryItem(editingItem.id, {
+          sku,
+          barcode,
+          nameAr,
+          nameEn,
+          category,
+          unit,
+          purchasePrice,
+          salePrice,
+          currentStock,
+          minStockAlert,
+        });
+      } else {
+        addInventoryItem({
+          sku,
+          barcode,
+          nameAr,
+          nameEn,
+          category,
+          unit,
+          purchasePrice,
+          salePrice,
+          currentStock,
+          minStockAlert,
+          vatRate: 0.15,
+        });
+      }
+      setItemModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'حدث خطأ أثناء حفظ الصنف');
     }
-    setItemModalOpen(false);
   };
 
   const handleOpenAdjust = (item: InventoryItem) => {
@@ -145,8 +179,13 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
   const handleConfirmAdjust = (e: React.FormEvent) => {
     e.preventDefault();
     if (!adjustTargetItem) return;
-    adjustInventoryStock(adjustTargetItem.id, newStockVal, adjustReason);
-    setAdjustModalOpen(false);
+    try {
+      adjustInventoryStock(adjustTargetItem.id, newStockVal, adjustReason);
+      setAdjustModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'حدث خطأ أثناء تسوية المخزون');
+    }
   };
 
   return (
@@ -234,8 +273,8 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
       {activeTab === 'items' ? (
         <>
           {/* Filters Bar */}
-          <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="relative sm:col-span-2">
+          <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex flex-col md:flex-row items-center gap-3">
+            <div className="relative flex-1 w-full">
               <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
               <input
                 type="text"
@@ -246,18 +285,50 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
               />
             </div>
 
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="all">جميع التصنيفات</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="all">جميع التصنيفات</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg transition font-medium ${
+                    statusFilter === 'all' ? 'bg-white shadow-xs font-bold text-slate-900' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  الكل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('active')}
+                  className={`px-2.5 py-1 rounded-lg transition font-medium ${
+                    statusFilter === 'active' ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  النشطة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('inactive')}
+                  className={`px-2.5 py-1 rounded-lg transition font-medium ${
+                    statusFilter === 'inactive' ? 'bg-rose-50 text-rose-700 font-bold' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  المعطلة
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Items Table */}
@@ -270,6 +341,7 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
                     <th className="p-3.5">اسم الصنف</th>
                     <th className="p-3.5">التصنيف</th>
                     <th className="p-3.5">الوحدة</th>
+                    <th className="p-3.5">الحالة</th>
                     <th className="p-3.5">سعر التكلفة</th>
                     <th className="p-3.5">سعر البيع</th>
                     <th className="p-3.5">الكمية المتوفرة</th>
@@ -278,70 +350,95 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {filteredItems.map((item) => {
-                    const isLow = item.currentStock <= item.minStockAlert;
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-50 transition">
-                        <td className="p-3.5 font-mono text-slate-500 font-bold">{item.sku}</td>
-                        <td className="p-3.5">
-                          <div className="font-bold text-slate-900">{item.nameAr}</div>
-                          {item.barcode && <div className="text-[10px] text-slate-400 font-mono">باركود: {item.barcode}</div>}
-                        </td>
-                        <td className="p-3.5">
-                          <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                            {item.category}
-                          </span>
-                        </td>
-                        <td className="p-3.5 text-slate-500">{item.unit}</td>
-                        <td className="p-3.5 font-mono text-slate-700">{formatSAR(item.purchasePrice)}</td>
-                        <td className="p-3.5 font-mono font-bold text-emerald-600">{formatSAR(item.salePrice)}</td>
-                        <td className="p-3.5 font-mono font-bold text-base text-slate-900">{item.currentStock}</td>
-                        <td className="p-3.5">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border inline-block ${
-                              item.currentStock === 0
-                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                : isLow
-                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            }`}
-                          >
-                            {item.currentStock === 0 ? 'نفد من المخزون' : isLow ? 'منخفض' : 'متوفر'}
-                          </span>
-                        </td>
-                        <td className="p-3.5">
-                          <div className="flex items-center justify-center gap-1.5">
+                  {filteredItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-8 text-center text-slate-400">
+                        لا توجد أصناف مطابقة لخيارات البحث أو الفلترة.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredItems.map((item) => {
+                      const isLow = item.currentStock <= item.minStockAlert;
+                      const isItemActive = item.isActive !== false;
+                      return (
+                        <tr key={item.id} className={`hover:bg-slate-50 transition ${!isItemActive ? 'bg-slate-50/60 opacity-75' : ''}`}>
+                          <td className="p-3.5 font-mono text-slate-500 font-bold">{item.sku}</td>
+                          <td className="p-3.5">
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                              <span>{item.nameAr}</span>
+                              {!isItemActive && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-200 text-slate-600 font-normal">معطل</span>
+                              )}
+                            </div>
+                            {item.barcode && <div className="text-[10px] text-slate-400 font-mono">باركود: {item.barcode}</div>}
+                          </td>
+                          <td className="p-3.5">
+                            <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-medium">
+                              {item.category}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-slate-500">{item.unit}</td>
+                          <td className="p-3.5">
                             <button
-                              onClick={() => handleOpenAdjust(item)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-700 border border-slate-200 transition text-[11px] flex items-center gap-1"
-                              title="تسوية جردية"
+                              type="button"
+                              onClick={() => toggleInventoryItemStatus(item.id)}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 transition ${
+                                isItemActive
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'
+                              }`}
+                              title="انقر لتغيير حالة التنشيط"
                             >
-                              <Sliders className="w-3.5 h-3.5" />
-                              <span>تسوية</span>
+                              <Power className="w-3 h-3" />
+                              <span>{isItemActive ? 'نشط' : 'معطل'}</span>
                             </button>
-                            <button
-                              onClick={() => handleOpenEdit(item)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 transition"
-                              title="تعديل"
+                          </td>
+                          <td className="p-3.5 font-mono text-slate-700">{formatSAR(item.purchasePrice)}</td>
+                          <td className="p-3.5 font-mono font-bold text-emerald-600">{formatSAR(item.salePrice)}</td>
+                          <td className="p-3.5 font-mono font-bold text-base text-slate-900">{item.currentStock}</td>
+                          <td className="p-3.5">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border inline-block ${
+                                item.currentStock === 0
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : isLow
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }`}
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm(`هل أنت متأكد من حذف الصنف (${item.nameAr})؟`)) {
-                                  deleteInventoryItem(item.id);
-                                }
-                              }}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 transition"
-                              title="حذف"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                              {item.currentStock === 0 ? 'نفد من المخزون' : isLow ? 'منخفض' : 'متوفر'}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleOpenAdjust(item)}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-700 border border-slate-200 transition text-[11px] flex items-center gap-1"
+                                title="تسوية جردية"
+                              >
+                                <Sliders className="w-3.5 h-3.5" />
+                                <span>تسوية</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenEdit(item)}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 transition"
+                                title="تعديل"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(item)}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 transition"
+                                title="حذف"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -383,13 +480,41 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
                               ? 'bg-rose-50 text-rose-700 border-rose-200'
                               : sm.type === 'purchase'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                              : sm.type === 'sale_reversal'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : sm.type === 'purchase_reversal'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : sm.type === 'return_in'
+                              ? 'bg-cyan-50 text-cyan-700 border-cyan-200'
+                              : sm.type === 'return_out'
+                              ? 'bg-orange-50 text-orange-700 border-orange-200'
+                              : sm.type === 'initial'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : sm.type === 'adjustment_in'
+                              ? 'bg-teal-50 text-teal-700 border-teal-200'
+                              : sm.type === 'adjustment_out'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
                           }`}
                         >
                           {sm.type === 'sale'
                             ? 'صرف مبيعات (-)'
                             : sm.type === 'purchase'
-                            ? 'إيداع مشتريات (+)'
+                            ? 'توريد مشتريات (+)'
+                            : sm.type === 'sale_reversal'
+                            ? 'عكس مبيعات (+)'
+                            : sm.type === 'purchase_reversal'
+                            ? 'عكس مشتريات (-)'
+                            : sm.type === 'return_in'
+                            ? 'مردودات مبيعات (+)'
+                            : sm.type === 'return_out'
+                            ? 'مردودات مشتريات (-)'
+                            : sm.type === 'initial'
+                            ? 'رصيد افتتاحي (●)'
+                            : sm.type === 'adjustment_in'
+                            ? 'تسوية إضافة (+)'
+                            : sm.type === 'adjustment_out'
+                            ? 'تسوية عجز (-)'
                             : 'تسوية جردية'}
                         </span>
                       </td>
@@ -503,13 +628,43 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-600 mb-1 font-medium">الرصيد الافتتاحي</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-600 font-medium">
+                      {editingItem ? 'الرصيد الحالي بالمخزن' : 'الرصيد الافتتاحي'}
+                    </label>
+                    {editingItem && !checkDirectStockEditAllowed(editingItem.id).canDirectlyEdit && (
+                      <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-200">
+                        مقفل لوجود حركات
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     value={currentStock}
+                    disabled={Boolean(editingItem && !checkDirectStockEditAllowed(editingItem.id).canDirectlyEdit)}
                     onChange={(e) => setCurrentStock(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className={`w-full border rounded-xl p-2 font-mono focus:outline-none ${
+                      editingItem && !checkDirectStockEditAllowed(editingItem.id).canDirectlyEdit
+                        ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-slate-50 border-slate-200 text-slate-900 focus:ring-2 focus:ring-emerald-500'
+                    }`}
                   />
+                  {editingItem && !checkDirectStockEditAllowed(editingItem.id).canDirectlyEdit && (
+                    <p className="text-[10px] text-slate-500 mt-1 leading-normal">
+                      لتعديل الرصيد بعد بدء العمليات، يرجى استخدام حركة{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItemModalOpen(false);
+                          handleOpenAdjust(editingItem);
+                        }}
+                        className="text-emerald-700 font-bold underline"
+                      >
+                        تسوية المخزون
+                      </button>
+                      .
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-slate-600 mb-1 font-medium">حد تنبيه انخفاض المخزون</label>
@@ -606,6 +761,25 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
             </form>
           </div>
         </div>
+      )}
+      {/* Dependency Check Modal */}
+      {depModalOpen && depTargetItem && depCheckResult && (
+        <DependencyCheckModal
+          isOpen={depModalOpen}
+          onClose={() => {
+            setDepModalOpen(false);
+            setDepTargetItem(null);
+            setDepCheckResult(null);
+          }}
+          title={`تعذر حذف الصنف المخزني: ${depTargetItem.nameAr}`}
+          entityName={depTargetItem.nameAr}
+          entityType="الصنف المخزني"
+          checkResult={depCheckResult}
+          onToggleDeactivate={() => {
+            toggleInventoryItemStatus(depTargetItem.id);
+          }}
+          isCurrentlyActive={depTargetItem.isActive !== false}
+        />
       )}
     </div>
   );

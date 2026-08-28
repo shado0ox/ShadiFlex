@@ -4,6 +4,7 @@ import { DebitCreditNote, NoteType } from '../../types/accounting';
 import { formatSAR, formatDateAr } from '../../utils/currency';
 import { DebitCreditNoteModal } from './DebitCreditNoteModal';
 import { DebitCreditNotePrintModal } from './DebitCreditNotePrintModal';
+import { DocumentReversalModal } from '../Common/DocumentReversalModal';
 import {
   FileText,
   Plus,
@@ -20,10 +21,21 @@ import {
   Receipt,
   Boxes,
   FileCheck2,
+  RotateCcw,
+  Clock,
+  XCircle,
+  Ban,
 } from 'lucide-react';
 
 export const DebitCreditNotesView: React.FC = () => {
-  const { debitCreditNotes, deleteDebitCreditNote, setActiveTab } = useAccounting();
+  const {
+    debitCreditNotes,
+    deleteDebitCreditNote,
+    postDocument,
+    cancelDraftDocument,
+    reversePostedDocument,
+    setActiveTab,
+  } = useAccounting();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'credit_note' | 'debit_note'>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -32,6 +44,10 @@ export const DebitCreditNotesView: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [createType, setCreateType] = useState<NoteType>('credit_note');
   const [selectedNoteForPrint, setSelectedNoteForPrint] = useState<DebitCreditNote | null>(null);
+
+  // Reversal Modal State
+  const [reversalModalOpen, setReversalModalOpen] = useState(false);
+  const [noteToReverse, setNoteToReverse] = useState<DebitCreditNote | null>(null);
 
   // Statistics calculation
   const totalCreditNotes = debitCreditNotes
@@ -78,7 +94,7 @@ export const DebitCreditNotesView: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            إدارة مردودات المبيعات والمشتريات وتعديلات الفواتير المعتمدة وفق لوائح هيئة الزكاة والضريبة والجمارك (ZATCA)
+            إدارة مردودات المبيعات والمشتريات وتعديلات الفواتير وفق لوائح هيئة الزكاة والضريبة والجمارك (ZATCA)
           </p>
         </div>
 
@@ -219,13 +235,14 @@ export const DebitCreditNotesView: React.FC = () => {
                 <th className="p-3.5 text-left">ضريبة 15%</th>
                 <th className="p-3.5 text-left">الإجمالي شامل الضريبة</th>
                 <th className="p-3.5 text-center">المستودع</th>
+                <th className="p-3.5 text-center">الحالة</th>
                 <th className="p-3.5 text-center">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredNotes.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-12 text-center text-slate-400">
+                  <td colSpan={12} className="p-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Receipt className="w-10 h-10 text-slate-300" />
                       <p className="font-bold text-sm text-slate-600">لا توجد إشعارات مدينة أو دائنة مطابقة</p>
@@ -236,6 +253,8 @@ export const DebitCreditNotesView: React.FC = () => {
               ) : (
                 filteredNotes.map((note) => {
                   const isCredit = note.type === 'credit_note';
+                  const status = note.status || 'posted';
+
                   return (
                     <tr key={note.id} className="hover:bg-slate-50/70 transition">
                       {/* Note Number */}
@@ -317,6 +336,37 @@ export const DebitCreditNotesView: React.FC = () => {
                         )}
                       </td>
 
+                      {/* Status Badge */}
+                      <td className="p-3.5 text-center">
+                        {status === 'posted' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>مرحّل</span>
+                          </span>
+                        )}
+                        {status === 'draft' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3" />
+                            <span>مسودة</span>
+                          </span>
+                        )}
+                        {status === 'reversed' && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200"
+                            title={`معكوس بتاريخ: ${note.reversalDate || '-'} | السبب: ${note.reversalReason || '-'}`}
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>معكوس محاسبياً</span>
+                          </span>
+                        )}
+                        {status === 'cancelled' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
+                            <Ban className="w-3 h-3" />
+                            <span>ملغي</span>
+                          </span>
+                        )}
+                      </td>
+
                       {/* Actions */}
                       <td className="p-3.5 text-center">
                         <div className="flex items-center justify-center gap-1.5">
@@ -327,17 +377,53 @@ export const DebitCreditNotesView: React.FC = () => {
                           >
                             <Printer className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`هل أنت متأكد من حذف الإشعار رقم ${note.noteNumber}؟`)) {
-                                deleteDebitCreditNote(note.id);
-                              }
-                            }}
-                            title="حذف الإشعار"
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+
+                          {status === 'draft' && (
+                            <>
+                              <button
+                                onClick={() => postDocument('debit_credit_note', note.id)}
+                                title="ترحيل الإشعار المحاسبي وتوليد القيد"
+                                className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = prompt('سبب إلغاء مسودة الإشعار:') || 'إلغاء مسودة';
+                                  cancelDraftDocument('debit_credit_note', note.id, reason);
+                                }}
+                                title="إلغاء المسودة"
+                                className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm(`هل أنت متأكد من حذف مسودة الإشعار رقم ${note.noteNumber}؟`)) {
+                                    deleteDebitCreditNote(note.id);
+                                  }
+                                }}
+                                title="حذف مسودة الإشعار"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+
+                          {status === 'posted' && (
+                            <button
+                              onClick={() => {
+                                setNoteToReverse(note);
+                                setReversalModalOpen(true);
+                              }}
+                              title="عكس محاسبي للإشعار المرحّل (إنشاء قيد عكسي)"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition flex items-center gap-1"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-bold">عكس</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -365,6 +451,24 @@ export const DebitCreditNotesView: React.FC = () => {
         <DebitCreditNotePrintModal
           note={selectedNoteForPrint}
           onClose={() => setSelectedNoteForPrint(null)}
+        />
+      )}
+
+      {/* Reversal Modal */}
+      {reversalModalOpen && noteToReverse && (
+        <DocumentReversalModal
+          isOpen={reversalModalOpen}
+          documentType="debit_credit_note"
+          documentId={noteToReverse.id}
+          documentNumber={noteToReverse.noteNumber}
+          documentAmount={noteToReverse.totalAmount}
+          onClose={() => {
+            setReversalModalOpen(false);
+            setNoteToReverse(null);
+          }}
+          onConfirm={(reason, reversalDate) => {
+            reversePostedDocument('debit_credit_note', noteToReverse.id, reason, reversalDate);
+          }}
         />
       )}
     </div>

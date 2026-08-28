@@ -1,8 +1,21 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
-import { JournalEntryLine } from '../../types/accounting';
+import { JournalEntryLine, JournalEntry, DocumentStatus } from '../../types/accounting';
 import { formatSAR } from '../../utils/currency';
-import { X, Plus, Trash2, CheckCircle2, AlertTriangle, BookOpen } from 'lucide-react';
+import { documentSequenceService } from '../../services/documentSequenceService';
+import { DocumentReversalModal } from '../Common/DocumentReversalModal';
+import {
+  X,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  AlertTriangle,
+  BookOpen,
+  RotateCcw,
+  Clock,
+  Ban,
+  XCircle,
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface NewJournalEntryModalProps {
@@ -16,18 +29,25 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { accounts, journalEntries, createManualJournalEntry } = useAccounting();
+  const { accounts, journalEntries, createManualJournalEntry, validateJournalEntry, companySettings } = useAccounting();
 
-  const nextEntryNumber = `JV-2026-${(journalEntries.length + 1).toString().padStart(4, '0')}`;
+  const fiscalYear = companySettings.fiscalYear || new Date().getFullYear();
+  const nextEntryNumber = documentSequenceService.peekNextNumber(
+    'journal_entry',
+    fiscalYear,
+    journalEntries.map((j) => j.entryNumber)
+  );
 
   const [entryNumber, setEntryNumber] = useState(nextEntryNumber);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [narrationAr, setNarrationAr] = useState('');
+  const [docStatus, setDocStatus] = useState<'posted' | 'draft'>('posted');
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [lines, setLines] = useState<JournalEntryLine[]>([
     {
       id: `line_1_${Date.now()}`,
-      accountId: accounts.find((a) => a.code === '5201')?.id || accounts[0]?.id || '',
+      accountId: accounts.find((a) => a.code === '5201' && a.isTransactional)?.id || accounts.find((a) => a.isTransactional)?.id || '',
       accountCode: '5201',
       accountNameAr: 'رواتب وأجور وبدلات العاملين',
       debit: 5000,
@@ -36,7 +56,7 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
     },
     {
       id: `line_2_${Date.now()}`,
-      accountId: accounts.find((a) => a.code === '110102')?.id || accounts[1]?.id || '',
+      accountId: accounts.find((a) => a.code === '110102' && a.isTransactional)?.id || accounts.filter((a) => a.isTransactional)[1]?.id || '',
       accountCode: '110102',
       accountNameAr: 'مصرف الراجحي - الحساب الجاري',
       debit: 0,
@@ -47,16 +67,41 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Real-time journal validation (strict money math, account eligibility, 2-decimal precision)
+  const validation = validateJournalEntry({
+    entryNumber,
+    date,
+    narrationAr,
+    lines,
+    status: docStatus,
+  });
+
   const handleLineChange = (index: number, field: keyof JournalEntryLine, value: any) => {
+    setSubmitError(null);
     const updated = [...lines];
-    const current = { ...updated[index], [field]: value };
+    const current = { ...updated[index] };
 
     if (field === 'accountId') {
+      current.accountId = value;
       const selectedAcc = accounts.find((a) => a.id === value);
       if (selectedAcc) {
         current.accountCode = selectedAcc.code;
         current.accountNameAr = selectedAcc.nameAr;
       }
+    } else if (field === 'debit') {
+      const numVal = isNaN(Number(value)) ? 0 : Math.max(0, Number(value));
+      current.debit = numVal;
+      if (numVal > 0) {
+        current.credit = 0; // Prevent both debit and credit on same line
+      }
+    } else if (field === 'credit') {
+      const numVal = isNaN(Number(value)) ? 0 : Math.max(0, Number(value));
+      current.credit = numVal;
+      if (numVal > 0) {
+        current.debit = 0; // Prevent both debit and credit on same line
+      }
+    } else {
+      (current as any)[field] = value;
     }
 
     updated[index] = current;
@@ -64,6 +109,7 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
   };
 
   const addLine = () => {
+    setSubmitError(null);
     setLines([
       ...lines,
       {
@@ -80,45 +126,48 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
 
   const removeLine = (index: number) => {
     if (lines.length <= 2) return;
+    setSubmitError(null);
     setLines(lines.filter((_, i) => i !== index));
   };
 
-  const totalDebit = lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
-  const totalCredit = lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
-  const difference = Math.abs(totalDebit - totalCredit);
-  const isBalanced = difference < 0.001 && totalDebit > 0;
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+
     if (!narrationAr.trim()) {
-      alert('يرجى كتابة شرح وبيان القيد');
+      setSubmitError('يرجى كتابة شرح وبيان القيد المحاسبي');
       return;
     }
 
-    if (!isBalanced) {
-      alert('لا يمكن حفظ القيد لأن مجموع المدين لا يساوي مجموع الدائن!');
+    if (!validation.isValid) {
+      setSubmitError(validation.errors[0] || 'القيد غير صالح محاسبياً');
       return;
     }
 
-    createManualJournalEntry({
-      entryNumber,
-      date,
-      referenceType: 'manual',
-      narrationAr,
-      lines,
-      totalDebit,
-      totalCredit,
-      isBalanced: true,
-    });
+    try {
+      createManualJournalEntry({
+        entryNumber,
+        date,
+        referenceType: 'manual',
+        narrationAr,
+        lines,
+        totalDebit: validation.totalDebit,
+        totalCredit: validation.totalCredit,
+        isBalanced: true,
+        status: docStatus,
+      });
 
-    confetti({
-      particleCount: 50,
-      spread: 50,
-      origin: { y: 0.6 },
-    });
+      confetti({
+        particleCount: 50,
+        spread: 50,
+        origin: { y: 0.6 },
+      });
 
-    onSuccess(entryNumber);
-    onClose();
+      onSuccess(entryNumber);
+      onClose();
+    } catch (err: any) {
+      setSubmitError(err?.message || 'حدث خطأ أثناء التحقق من صحة القيد وحفظه');
+    }
   };
 
   return (
@@ -142,7 +191,28 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 text-right">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          {submitError && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-rose-700 text-xs font-bold">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{submitError}</span>
+            </div>
+          )}
+
+          {validation.errors.length > 0 && (
+            <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1 text-amber-800">
+              <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                <span>ملاحظات التدقيق المحاسبي الصارم للقيد:</span>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5 text-amber-800/90 text-2xs pr-1">
+                {validation.errors.map((err, idx) => (
+                  <li key={idx}>{err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">رقم سند القيد *</label>
               <input
@@ -152,6 +222,18 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
                 className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs text-slate-900 font-mono focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 required
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">حالة القيد</label>
+              <select
+                value={docStatus}
+                onChange={(e) => setDocStatus(e.target.value as 'posted' | 'draft')}
+                className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs text-slate-900 font-bold focus:ring-2 focus:ring-purple-500 focus:outline-none"
+              >
+                <option value="posted">مرحّل للأستاذ العام</option>
+                <option value="draft">مسودة (دون تأثير مالي)</option>
+              </select>
             </div>
 
             <div>
@@ -268,10 +350,10 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
                 <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-200 text-slate-800">
                   <tr>
                     <td className="p-3 text-slate-900">المجموع الإجمالي:</td>
-                    <td className="p-3 font-mono text-emerald-600 text-sm">{formatSAR(totalDebit)}</td>
-                    <td className="p-3 font-mono text-blue-600 text-sm">{formatSAR(totalCredit)}</td>
+                    <td className="p-3 font-mono text-emerald-600 text-sm">{formatSAR(validation.totalDebit)}</td>
+                    <td className="p-3 font-mono text-blue-600 text-sm">{formatSAR(validation.totalCredit)}</td>
                     <td colSpan={2} className="p-3 text-left">
-                      {isBalanced ? (
+                      {validation.isBalanced ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-xs bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           القيد متزن محاسبياً
@@ -279,7 +361,7 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
                       ) : (
                         <span className="inline-flex items-center gap-1 text-rose-700 font-bold text-xs bg-rose-50 px-3 py-1 rounded-xl border border-rose-200">
                           <AlertTriangle className="w-3.5 h-3.5" />
-                          فرق غير متزن: {formatSAR(difference)}
+                          فرق غير متزن: {formatSAR(validation.difference)}
                         </span>
                       )}
                     </td>
@@ -300,7 +382,7 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!isBalanced}
+              disabled={!validation.isValid}
               className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-bold px-6 py-2.5 rounded-xl transition shadow-xs active:scale-95 disabled:opacity-40"
             >
               <CheckCircle2 className="w-4 h-4" />
@@ -314,16 +396,32 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
 };
 
 export const JournalEntriesView: React.FC<{ onOpenNewEntry: () => void }> = ({ onOpenNewEntry }) => {
-  const { journalEntries } = useAccounting();
+  const {
+    journalEntries,
+    postDocument,
+    cancelDraftDocument,
+    reversePostedDocument,
+    deleteJournalEntry,
+  } = useAccounting();
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const filtered = journalEntries.filter(
-    (j) =>
-      j.entryNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      j.narrationAr.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (j.referenceNumber && j.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Reversal Modal State
+  const [reversalModalOpen, setReversalModalOpen] = useState(false);
+  const [entryToReverse, setEntryToReverse] = useState<JournalEntry | null>(null);
+
+  const filtered = journalEntries.filter((entry) => {
+    const matchesSearch =
+      entry.entryNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.narrationAr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (entry.referenceNumber && entry.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const docStatus = entry.status || 'posted';
+    const matchesStatus = statusFilter === 'all' ? true : docStatus === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -349,98 +447,228 @@ export const JournalEntriesView: React.FC<{ onOpenNewEntry: () => void }> = ({ o
         </button>
       </div>
 
-      {/* Entries List */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-        <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+      {/* Search & Status Filter */}
+      <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+        <div className="w-full sm:w-80">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="بحث برقم القيد، البيان، رقم المرجع..."
-            className="w-full sm:w-80 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-purple-500"
           />
         </div>
 
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-purple-500"
+        >
+          <option value="all">جميع حالات القيود</option>
+          <option value="posted">المرحّلة (Posted)</option>
+          <option value="draft">المسودة (Draft)</option>
+          <option value="reversed">المعكوسة (Reversed)</option>
+          <option value="cancelled">الملغاة (Cancelled)</option>
+        </select>
+      </div>
+
+      {/* Entries List */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         <div className="divide-y divide-slate-100">
-          {filtered.map((entry) => {
-            const isExpanded = expandedId === entry.id;
-            return (
-              <div key={entry.id} className="p-4 hover:bg-slate-50 transition">
-                <div
-                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer"
-                  onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-slate-900 text-sm">{entry.entryNumber}</span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          entry.referenceType === 'manual'
-                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              لا توجد قيود يومية مطابقة للبحث.
+            </div>
+          ) : (
+            filtered.map((entry) => {
+              const isExpanded = expandedId === entry.id;
+              const status: DocumentStatus = entry.status || 'posted';
+
+              return (
+                <div key={entry.id} className="p-4 hover:bg-slate-50 transition">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div
+                      className="space-y-1 cursor-pointer flex-1"
+                      onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-slate-900 text-sm">{entry.entryNumber}</span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            entry.referenceType === 'manual'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : entry.referenceType === 'sales_invoice'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}
+                        >
+                          {entry.referenceType === 'manual'
+                            ? 'قيد يدوي'
                             : entry.referenceType === 'sales_invoice'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-blue-50 text-blue-700 border-blue-200'
-                        }`}
+                            ? 'فاتورة مبيعات'
+                            : 'فاتورة مشتريات'}
+                        </span>
+
+                        {/* Status badge */}
+                        {status === 'posted' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>مرحّل</span>
+                          </span>
+                        )}
+                        {status === 'draft' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3" />
+                            <span>مسودة</span>
+                          </span>
+                        )}
+                        {status === 'reversed' && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200"
+                            title={`معكوس بتاريخ: ${entry.reversalDate || '-'} | السبب: ${entry.reversalReason || '-'}`}
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>معكوس</span>
+                          </span>
+                        )}
+                        {status === 'cancelled' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
+                            <Ban className="w-3 h-3" />
+                            <span>ملغى</span>
+                          </span>
+                        )}
+
+                        <span className="text-xs text-slate-400 font-mono">{entry.date}</span>
+                      </div>
+                      <p className="text-xs text-slate-600 font-medium">{entry.narrationAr}</p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-left font-mono font-bold text-sm text-purple-700">
+                        {formatSAR(entry.totalDebit)}
+                      </div>
+
+                      {/* Action buttons */}
+                      {status === 'draft' && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              postDocument('journal_entry', entry.id);
+                            }}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-600 text-purple-700 hover:text-white transition font-bold text-[11px] border border-purple-200"
+                            title="ترحيل القيد للأستاذ العام"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>ترحيل</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const reason = prompt('سبب إلغاء مسودة القيد:') || 'إلغاء مسودة';
+                              cancelDraftDocument('journal_entry', entry.id, reason);
+                            }}
+                            className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                            title="إلغاء المسودة"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`هل أنت متأكد من حذف مسودة القيد ${entry.entryNumber}؟`)) {
+                                deleteJournalEntry(entry.id);
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="حذف المسودة"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+
+                      {status === 'posted' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEntryToReverse(entry);
+                            setReversalModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition flex items-center gap-1"
+                          title="إنشاء قيد عكسي محاسبي"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-bold">عكس</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                        className="text-xs text-slate-500 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-xl transition"
                       >
-                        {entry.referenceType === 'manual'
-                          ? 'قيد يدوي'
-                          : entry.referenceType === 'sales_invoice'
-                          ? 'فاتورة مبيعات'
-                          : 'فاتورة مشتريات'}
-                      </span>
-                      <span className="text-xs text-slate-400 font-mono">{entry.date}</span>
+                        {isExpanded ? 'إخفاء' : 'عرض الأطراف'}
+                      </button>
                     </div>
-                    <p className="text-xs text-slate-600 font-medium">{entry.narrationAr}</p>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="text-left font-mono font-bold text-sm text-purple-700">
-                      {formatSAR(entry.totalDebit)}
-                    </div>
-                    <span className="text-xs text-slate-500 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-xl transition">
-                      {isExpanded ? 'إخفاء التفاصيل' : 'عرض أطراف القيد'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Expanded Lines */}
-                {isExpanded && (
-                  <div className="mt-4 pt-3 border-t border-slate-100 animate-in fade-in">
-                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                      <table className="w-full text-right text-xs">
-                        <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 font-medium">
-                          <tr>
-                            <th className="p-2.5">رمز الحساب</th>
-                            <th className="p-2.5">اسم الحساب</th>
-                            <th className="p-2.5">البيان الفرعي</th>
-                            <th className="p-2.5">مدين</th>
-                            <th className="p-2.5">دائن</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                          {entry.lines.map((l) => (
-                            <tr key={l.id} className="hover:bg-slate-50">
-                              <td className="p-2.5 font-mono text-slate-500">{l.accountCode}</td>
-                              <td className="p-2.5 font-medium text-slate-900">{l.accountNameAr}</td>
-                              <td className="p-2.5 text-slate-500">{l.description || '-'}</td>
-                              <td className="p-2.5 font-mono text-emerald-600">
-                                {l.debit > 0 ? formatSAR(l.debit, false) : '-'}
-                              </td>
-                              <td className="p-2.5 font-mono text-blue-600">
-                                {l.credit > 0 ? formatSAR(l.credit, false) : '-'}
-                              </td>
+                  {/* Expanded Lines */}
+                  {isExpanded && (
+                    <div className="mt-4 pt-3 border-t border-slate-100 animate-in fade-in">
+                      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                        <table className="w-full text-right text-xs">
+                          <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 font-medium">
+                            <tr>
+                              <th className="p-2.5">رمز الحساب</th>
+                              <th className="p-2.5">اسم الحساب</th>
+                              <th className="p-2.5">البيان الفرعي</th>
+                              <th className="p-2.5">مدين</th>
+                              <th className="p-2.5">دائن</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                            {entry.lines.map((l) => (
+                              <tr key={l.id} className="hover:bg-slate-50">
+                                <td className="p-2.5 font-mono text-slate-500">{l.accountCode}</td>
+                                <td className="p-2.5 font-medium text-slate-900">{l.accountNameAr}</td>
+                                <td className="p-2.5 text-slate-500">{l.description || '-'}</td>
+                                <td className="p-2.5 font-mono text-emerald-600">
+                                  {l.debit > 0 ? formatSAR(l.debit, false) : '-'}
+                                </td>
+                                <td className="p-2.5 font-mono text-blue-600">
+                                  {l.credit > 0 ? formatSAR(l.credit, false) : '-'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
+
+      {/* Reversal Modal */}
+      {reversalModalOpen && entryToReverse && (
+        <DocumentReversalModal
+          isOpen={reversalModalOpen}
+          documentType="journal_entry"
+          documentId={entryToReverse.id}
+          documentNumber={entryToReverse.entryNumber}
+          documentAmount={entryToReverse.totalDebit}
+          onClose={() => {
+            setReversalModalOpen(false);
+            setEntryToReverse(null);
+          }}
+          onConfirm={(reason, reversalDate) => {
+            reversePostedDocument('journal_entry', entryToReverse.id, reason, reversalDate);
+          }}
+        />
+      )}
     </div>
   );
 };

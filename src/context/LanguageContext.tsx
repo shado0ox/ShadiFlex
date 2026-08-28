@@ -40,7 +40,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.settings': 'إعدادات المنشأة وإقفال السنة و API',
 
     // Header & Actions
-    'header.zatca_certified': 'معتمد ZATCA',
+    'header.zatca_certified': 'محاكي ZATCA',
     'header.vat_no': 'الرقم الضريبي',
     'header.cr_no': 'السجل التجاري',
     'header.quick_action': 'إجراء سريع',

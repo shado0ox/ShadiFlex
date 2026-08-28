@@ -116,9 +116,22 @@ export const PosTerminal: React.FC = () => {
 
   // Add Item to Cart (or increment if already in cart)
   const handleAddToCart = (product: InventoryItem) => {
+    if (product.currentStock <= 0) {
+      alert(`عفواً، الصنف "${product.nameAr}" غير متوفر حالياً في المخزون (الرصيد: 0).`);
+      return;
+    }
+
+    const existing = cart.find((i) => i.itemId === product.id);
+    if (existing && existing.quantity + 1 > product.currentStock) {
+      alert(
+        `لا يمكن إضافة المزيد من الصنف "${product.nameAr}".\nالكمية المطلوبة (${existing.quantity + 1}) تتجاوز الرصيد المتاح (${product.currentStock}).`
+      );
+      return;
+    }
+
     setCart((prev) => {
-      const existing = prev.find((i) => i.itemId === product.id);
-      if (existing) {
+      const found = prev.find((i) => i.itemId === product.id);
+      if (found) {
         return prev.map((i) =>
           i.itemId === product.id ? { ...i, quantity: i.quantity + 1 } : i
         );
@@ -144,6 +157,15 @@ export const PosTerminal: React.FC = () => {
       handleRemoveItem(itemId);
       return;
     }
+
+    const prod = inventory.find((p) => p.id === itemId);
+    if (prod && newQty > prod.currentStock) {
+      alert(
+        `لا يمكن طلب كمية (${newQty}) من الصنف "${prod.nameAr}".\nالرصيد المتاح حالياً هو (${prod.currentStock}) فقط.`
+      );
+      return;
+    }
+
     setCart((prev) =>
       prev.map((i) => (i.itemId === itemId ? { ...i, quantity: newQty } : i))
     );
@@ -292,9 +314,9 @@ export const PosTerminal: React.FC = () => {
 
       // Open receipt modal
       setLastIssuedInvoice(invoice);
-    } catch (error) {
+    } catch (error: any) {
       console.error('POS Checkout error:', error);
-      alert('حدث خطأ أثناء معالجة عملية البيع.');
+      alert(error?.message || 'حدث خطأ أثناء معالجة عملية البيع.');
     }
   };
 

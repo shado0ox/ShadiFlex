@@ -146,11 +146,9 @@ export const ZatcaPhase2Hub: React.FC = () => {
       await handleGenerateCsr();
       await new Promise((r) => setTimeout(r, 400));
 
-      // Step 2: Educational Simulation Step
+      // Step 2: Educational Simulation Step (No fake tokens or fake CCSID/PCSID created)
       setConfig((prev) => ({
         ...prev,
-        ccsidSecret: 'demo_simulation_secret',
-        ccsidToken: `demo_simulation_ccsid_${otpInput}`,
         complianceChecks: {
           standardInvoice: true,
           simplifiedInvoice: true,

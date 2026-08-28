@@ -1,6 +1,22 @@
 export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
 export type AccountNature = 'debit' | 'credit';
 
+export type DocumentStatus = 'draft' | 'posted' | 'cancelled' | 'reversed';
+export type DocumentType =
+  | 'sales_invoice'
+  | 'purchase_invoice'
+  | 'journal_entry'
+  | 'voucher'
+  | 'debit_credit_note'
+  | 'simple_expense';
+
+export interface DependencyCheckResult {
+  canDelete: boolean;
+  reason?: string;
+  details?: Record<string, number | string | boolean>;
+  dependenciesSummary?: Array<{ label: string; count: number }>;
+}
+
 export interface Account {
   id: string;
   code: string; // e.g. '1101', '1102'
@@ -13,6 +29,7 @@ export interface Account {
   isTransactional: boolean; // Can journal entries post directly to this account?
   balance: number; // Current balance in SAR
   description?: string;
+  isActive?: boolean;
 }
 
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'credit' | 'pos_card' | 'mada' | 'cheque';
@@ -51,6 +68,7 @@ export interface Customer {
     additionalNumber?: string;
   };
   balance: number; // Current accounts receivable balance
+  isActive?: boolean;
 }
 
 export interface Supplier {
@@ -63,6 +81,7 @@ export interface Supplier {
   email?: string;
   city?: string;
   balance: number; // Current accounts payable balance
+  isActive?: boolean;
 }
 
 export interface SalesInvoice {
@@ -91,7 +110,14 @@ export interface SalesInvoice {
   notes?: string;
   zatcaQrBase64?: string;
   journalEntryId?: string;
-  status: 'issued' | 'cancelled' | 'draft';
+  status: DocumentStatus;
+  postedAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  reversalReason?: string;
+  reversalDate?: string;
+  reversalJournalEntryId?: string;
+  reversedAt?: string;
   // POS & Branch additions
   isPosSale?: boolean;
   branchId?: string;
@@ -128,6 +154,14 @@ export interface PurchaseInvoice {
   paidAmount: number;
   notes?: string;
   journalEntryId?: string;
+  status: DocumentStatus;
+  postedAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  reversalReason?: string;
+  reversalDate?: string;
+  reversalJournalEntryId?: string;
+  reversedAt?: string;
 }
 
 export interface InventoryItem {
@@ -146,6 +180,7 @@ export interface InventoryItem {
   accountId?: string; // Inventory asset account (e.g. 1104)
   cogsAccountId?: string; // COGS expense account (e.g. 5101)
   salesAccountId?: string; // Sales revenue account (e.g. 4101)
+  isActive?: boolean;
 }
 
 export interface StockMovement {
@@ -153,11 +188,22 @@ export interface StockMovement {
   itemId: string;
   itemName: string;
   date: string;
-  type: 'sale' | 'purchase' | 'adjustment_in' | 'adjustment_out' | 'initial';
+  type:
+    | 'sale'
+    | 'purchase'
+    | 'adjustment_in'
+    | 'adjustment_out'
+    | 'initial'
+    | 'sale_reversal'
+    | 'purchase_reversal'
+    | 'return_in'
+    | 'return_out';
   quantity: number;
   previousStock: number;
   newStock: number;
   referenceNumber: string; // Invoice number or adjustment ref
+  documentType?: string; // e.g. 'sales_invoice', 'purchase_invoice', 'credit_note', 'debit_note', 'pos_sale', 'inventory_adjustment', 'sales_invoice_reversal', 'purchase_invoice_reversal'
+  documentId?: string; // ID of the related document
   notes?: string;
 }
 
@@ -199,7 +245,14 @@ export interface DebitCreditNote {
   refundMethod: PaymentMethod | 'account_balance';
   zatcaQrBase64?: string;
   journalEntryId?: string;
-  status: 'issued' | 'cancelled' | 'draft';
+  status: DocumentStatus;
+  postedAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  reversalReason?: string;
+  reversalDate?: string;
+  reversalJournalEntryId?: string;
+  reversedAt?: string;
   notes?: string;
 }
 
@@ -241,7 +294,14 @@ export interface Voucher {
   paidBy?: string; // المسلّم / المحاسب
   approvedBy?: string; // المعتمد
   journalEntryId?: string;
-  status?: 'posted' | 'draft' | 'cancelled';
+  status: DocumentStatus;
+  postedAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  reversalReason?: string;
+  reversalDate?: string;
+  reversalJournalEntryId?: string;
+  reversedAt?: string;
   createdAt: string;
 }
 
@@ -267,6 +327,18 @@ export interface JournalEntry {
   totalDebit: number;
   totalCredit: number;
   isBalanced: boolean;
+  status?: DocumentStatus;
+  isReversal?: boolean;
+  reversedEntryId?: string; // المعرّف للقيد الأصلي إذا كان هذا قيداً عكسياً
+  reversedEntryNumber?: string;
+  reversalEntryId?: string; // المعرّف للقيد العكسي إذا تم عكس هذا القيد
+  reversalEntryNumber?: string;
+  reversalReason?: string;
+  reversalDate?: string;
+  reversedAt?: string;
+  postedAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
   createdAt: string;
 }
 
@@ -425,7 +497,14 @@ export interface SimpleExpenseInvoice {
   attachmentName?: string;
   attachmentDataUrl?: string; // صورة الفاتورة إن وجدت
   journalEntryId?: string;
-  status: 'paid' | 'pending';
+  status: DocumentStatus;
+  postedAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  reversalReason?: string;
+  reversalDate?: string;
+  reversalJournalEntryId?: string;
+  reversedAt?: string;
   createdAt: string;
 }
 

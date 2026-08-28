@@ -1,8 +1,23 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
-import { PaymentMethod, PaymentStatus, InvoiceItem } from '../../types/accounting';
+import { PaymentMethod, PaymentStatus, InvoiceItem, PurchaseInvoice } from '../../types/accounting';
 import { formatSAR, tafqeetArabic } from '../../utils/currency';
-import { X, Plus, Trash2, CheckCircle2, ShoppingCart, Truck } from 'lucide-react';
+import { documentSequenceService } from '../../services/documentSequenceService';
+import { DocumentReversalModal } from '../Common/DocumentReversalModal';
+import {
+  X,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  ShoppingCart,
+  Truck,
+  RotateCcw,
+  Clock,
+  Ban,
+  XCircle,
+  AlertCircle,
+  FileText,
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface PurchaseFormModalProps {
@@ -12,14 +27,20 @@ interface PurchaseFormModalProps {
 }
 
 export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { suppliers, inventory, purchaseInvoices, createPurchaseInvoice } = useAccounting();
+  const { suppliers, inventory, purchaseInvoices, createPurchaseInvoice, companySettings } = useAccounting();
 
-  const nextPurchaseNumber = `PUR-2026-${(purchaseInvoices.length + 1).toString().padStart(4, '0')}`;
+  const fiscalYear = companySettings.fiscalYear || new Date().getFullYear();
+  const nextPurchaseNumber = documentSequenceService.peekNextNumber(
+    'purchase_invoice',
+    fiscalYear,
+    purchaseInvoices.map((p) => p.invoiceNumber)
+  );
 
   const [invoiceNumber, setInvoiceNumber] = useState(nextPurchaseNumber);
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState('');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [docStatus, setDocStatus] = useState<'posted' | 'draft'>('posted');
 
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [supplierName, setSupplierName] = useState('');
@@ -147,6 +168,7 @@ export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, on
         paymentStatus,
         paidAmount: currentPaid,
         notes,
+        status: docStatus,
       });
 
       confetti({
@@ -157,9 +179,9 @@ export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, on
 
       onSuccess(invoiceNumber);
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('حدث خطأ أثناء حفظ فاتورة المشتريات');
+      alert(err?.message || 'حدث خطأ أثناء حفظ فاتورة المشتريات');
     } finally {
       setIsSubmitting(false);
     }
@@ -187,7 +209,7 @@ export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, on
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 text-right">
           {/* Top Meta */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">رقم الفاتورة الداخلي *</label>
               <input
@@ -197,6 +219,18 @@ export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, on
                 className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:ring-2 focus:ring-blue-500"
                 required
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">حالة المستند</label>
+              <select
+                value={docStatus}
+                onChange={(e) => setDocStatus(e.target.value as 'posted' | 'draft')}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="posted">مرحّلة مباشرة (توليد قيد ومخزون)</option>
+                <option value="draft">مسودة (حفظ دون تأثير مالي)</option>
+              </select>
             </div>
 
             <div>
@@ -447,15 +481,31 @@ export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, on
 };
 
 export const PurchaseInvoices: React.FC<{ onOpenNewPurchase: () => void }> = ({ onOpenNewPurchase }) => {
-  const { purchaseInvoices } = useAccounting();
+  const {
+    purchaseInvoices,
+    postDocument,
+    cancelDraftDocument,
+    reversePostedDocument,
+    deletePurchaseInvoice,
+  } = useAccounting();
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const filtered = purchaseInvoices.filter(
-    (p) =>
+  // Reversal Modal State
+  const [reversalModalOpen, setReversalModalOpen] = useState(false);
+  const [invoiceToReverse, setInvoiceToReverse] = useState<PurchaseInvoice | null>(null);
+
+  const filtered = purchaseInvoices.filter((p) => {
+    const matchesSearch =
       p.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.supplierInvoiceNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      p.supplierInvoiceNumber.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const docStatus = p.status || 'posted';
+    const matchesStatus = statusFilter === 'all' ? true : docStatus === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
@@ -481,18 +531,33 @@ export const PurchaseInvoices: React.FC<{ onOpenNewPurchase: () => void }> = ({ 
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-        <div className="p-4 border-b border-slate-100">
+      {/* Search & Status Filter */}
+      <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+        <div className="w-full sm:w-80">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="بحث برقم الفاتورة، اسم المورد، رقم فاتورة المورد..."
-            className="w-full sm:w-80 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">جميع حالات المستندات</option>
+          <option value="posted">المرحّلة (Posted)</option>
+          <option value="draft">المسودة (Draft)</option>
+          <option value="reversed">المعكوسة (Reversed)</option>
+          <option value="cancelled">الملغاة (Cancelled)</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
@@ -505,43 +570,151 @@ export const PurchaseInvoices: React.FC<{ onOpenNewPurchase: () => void }> = ({ 
                 <th className="p-3.5">ضريبة المدخلات (15%)</th>
                 <th className="p-3.5">الإجمالي</th>
                 <th className="p-3.5">حالة السداد</th>
+                <th className="p-3.5 text-center">حالة المستند</th>
+                <th className="p-3.5 text-center">إجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-slate-400">
-                    لا توجد فواتير مشتريات مسجلة.
+                  <td colSpan={10} className="p-8 text-center text-slate-400">
+                    لا توجد فواتير مشتريات مطابقة للبحث.
                   </td>
                 </tr>
               ) : (
-                filtered.map((pur) => (
-                  <tr key={pur.id} className="hover:bg-slate-50/80 transition">
-                    <td className="p-3.5 font-mono font-bold text-slate-900">{pur.invoiceNumber}</td>
-                    <td className="p-3.5 font-mono text-slate-500">{pur.supplierInvoiceNumber}</td>
-                    <td className="p-3.5 font-bold text-slate-900">{pur.supplierName}</td>
-                    <td className="p-3.5 text-slate-500">{pur.issueDate}</td>
-                    <td className="p-3.5 font-mono">{formatSAR(pur.taxableAmount)}</td>
-                    <td className="p-3.5 font-mono text-purple-700">{formatSAR(pur.vatTotal)}</td>
-                    <td className="p-3.5 font-mono font-bold text-slate-900">{formatSAR(pur.totalAmount)}</td>
-                    <td className="p-3.5">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          pur.paymentStatus === 'paid'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}
-                      >
-                        {pur.paymentStatus === 'paid' ? 'مدفوعة' : 'غير مدفوعة (آجل)'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                filtered.map((pur) => {
+                  const status = pur.status || 'posted';
+
+                  return (
+                    <tr key={pur.id} className="hover:bg-slate-50/80 transition">
+                      <td className="p-3.5 font-mono font-bold text-slate-900">{pur.invoiceNumber}</td>
+                      <td className="p-3.5 font-mono text-slate-500">{pur.supplierInvoiceNumber}</td>
+                      <td className="p-3.5 font-bold text-slate-900">{pur.supplierName}</td>
+                      <td className="p-3.5 text-slate-500">{pur.issueDate}</td>
+                      <td className="p-3.5 font-mono">{formatSAR(pur.taxableAmount)}</td>
+                      <td className="p-3.5 font-mono text-purple-700">{formatSAR(pur.vatTotal)}</td>
+                      <td className="p-3.5 font-mono font-bold text-slate-900">{formatSAR(pur.totalAmount)}</td>
+                      <td className="p-3.5">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            pur.paymentStatus === 'paid'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}
+                        >
+                          {pur.paymentStatus === 'paid' ? 'مدفوعة' : 'غير مدفوعة (آجل)'}
+                        </span>
+                      </td>
+
+                      {/* Document Status */}
+                      <td className="p-3.5 text-center">
+                        {status === 'posted' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>مرحّلة</span>
+                          </span>
+                        )}
+                        {status === 'draft' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3" />
+                            <span>مسودة</span>
+                          </span>
+                        )}
+                        {status === 'reversed' && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200"
+                            title={`معكوسة بتاريخ: ${pur.reversalDate || '-'} | السبب: ${pur.reversalReason || '-'}`}
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>معكوسة</span>
+                          </span>
+                        )}
+                        {status === 'cancelled' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
+                            <Ban className="w-3 h-3" />
+                            <span>ملغاة</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="p-3.5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {status === 'draft' && (
+                            <>
+                              <button
+                                onClick={() => postDocument('purchase_invoice', pur.id)}
+                                className="flex items-center gap-1 p-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white transition font-bold text-[11px] border border-blue-200"
+                                title="ترحيل فاتورة المشتريات وتحديث الحسابات والمخزون"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>ترحيل</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = prompt('سبب إلغاء مسودة فاتورة المشتريات:') || 'إلغاء مسودة';
+                                  cancelDraftDocument('purchase_invoice', pur.id, reason);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                title="إلغاء المسودة"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm(`هل أنت متأكد من حذف مسودة فاتورة المشتريات ${pur.invoiceNumber}؟`)) {
+                                    deletePurchaseInvoice(pur.id);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                title="حذف المسودة"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+
+                          {status === 'posted' && (
+                            <button
+                              onClick={() => {
+                                setInvoiceToReverse(pur);
+                                setReversalModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition flex items-center gap-1"
+                              title="عكس محاسبي لفاتورة المشتريات وتخفيض المخزون"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-bold">عكس</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Reversal Modal */}
+      {reversalModalOpen && invoiceToReverse && (
+        <DocumentReversalModal
+          isOpen={reversalModalOpen}
+          documentType="purchase_invoice"
+          documentId={invoiceToReverse.id}
+          documentNumber={invoiceToReverse.invoiceNumber}
+          documentAmount={invoiceToReverse.totalAmount}
+          onClose={() => {
+            setReversalModalOpen(false);
+            setInvoiceToReverse(null);
+          }}
+          onConfirm={(reason, reversalDate) => {
+            reversePostedDocument('purchase_invoice', invoiceToReverse.id, reason, reversalDate);
+          }}
+        />
+      )}
     </div>
   );
 };

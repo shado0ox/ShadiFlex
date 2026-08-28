@@ -42,16 +42,14 @@ import {
   AccountingDataSnapshot,
   StorageQuotaListener,
 } from './AccountingRepository';
+import { validateAccountingBackupJson } from '../services/dataValidationService';
+import {
+  SHADIFLEX_STORAGE_PREFIX,
+  CURRENT_SCHEMA_VERSION,
+  LEGACY_STORAGE_PREFIX_V1,
+} from '../constants/storage';
 
-/**
- * Prefix dedicated specifically to ShadiFlex Accounting System.
- * Ensures we NEVER touch other applications, keys, or cookies sharing the origin/domain.
- */
-export const SHADIFLEX_STORAGE_PREFIX = 'shadiflex_erp_v2';
-export const CURRENT_SCHEMA_VERSION = 2;
-
-// Previous version prefix for smooth migration
-const LEGACY_STORAGE_PREFIX_V1 = 'saudi_accounting_system_v1';
+export { SHADIFLEX_STORAGE_PREFIX, CURRENT_SCHEMA_VERSION, LEGACY_STORAGE_PREFIX_V1 };
 
 export class LocalStorageAccountingRepository implements IAccountingRepository {
   private static instance: LocalStorageAccountingRepository;
@@ -470,11 +468,16 @@ export class LocalStorageAccountingRepository implements IAccountingRepository {
 
   public importDataJson(jsonString: string): boolean {
     try {
-      const data = JSON.parse(jsonString) as Partial<AccountingDataSnapshot>;
-      if (!data || typeof data !== 'object') {
+      // Validate full JSON schema and business rules before touching any state
+      const validationResult = validateAccountingBackupJson(jsonString);
+      if (!validationResult.isValid || !validationResult.sanitizedData) {
+        console.error('[ShadiFlex Storage Engine] Validation failed for imported data:', validationResult.errors);
         return false;
       }
 
+      const data = validationResult.sanitizedData;
+
+      // Apply changes atomically
       if (data.companySettings) this.saveCompanySettings(data.companySettings);
       if (data.accounts) this.saveAccounts(data.accounts);
       if (data.customers) this.saveCustomers(data.customers);

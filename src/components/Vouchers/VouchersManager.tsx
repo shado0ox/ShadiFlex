@@ -4,6 +4,7 @@ import { Voucher, VoucherType } from '../../types/accounting';
 import { formatSAR, formatDateAr } from '../../utils/currency';
 import { VoucherFormModal } from './VoucherFormModal';
 import { VoucherPrintModal } from './VoucherPrintModal';
+import { DocumentReversalModal } from '../Common/DocumentReversalModal';
 import {
   DollarSign,
   Plus,
@@ -20,10 +21,21 @@ import {
   FileCheck2,
   Calendar,
   Wallet,
+  RotateCcw,
+  CheckCircle2,
+  XCircle,
+  Ban,
+  Clock,
 } from 'lucide-react';
 
 export const VouchersManager: React.FC = () => {
-  const { vouchers, deleteVoucher } = useAccounting();
+  const {
+    vouchers,
+    deleteVoucher,
+    postDocument,
+    cancelDraftDocument,
+    reversePostedDocument,
+  } = useAccounting();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'receipt' | 'payment'>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -32,6 +44,10 @@ export const VouchersManager: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [createType, setCreateType] = useState<VoucherType>('receipt');
   const [selectedVoucherForPrint, setSelectedVoucherForPrint] = useState<Voucher | null>(null);
+
+  // Reversal Modal State
+  const [reversalModalOpen, setReversalModalOpen] = useState(false);
+  const [voucherToReverse, setVoucherToReverse] = useState<Voucher | null>(null);
 
   // Statistics
   const totalReceipts = vouchers
@@ -233,6 +249,7 @@ export const VouchersManager: React.FC = () => {
                 <th className="p-3.5">طريقة الدفع</th>
                 <th className="p-3.5">البيان والتفاصيل</th>
                 <th className="p-3.5">الفاتورة المرجعية</th>
+                <th className="p-3.5 text-center">الحالة</th>
                 <th className="p-3.5 text-center">التوجيه المحاسبي</th>
                 <th className="p-3.5 text-center">الإجراءات</th>
               </tr>
@@ -240,7 +257,7 @@ export const VouchersManager: React.FC = () => {
             <tbody className="divide-y divide-slate-200">
               {filteredVouchers.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-12 text-center text-slate-400">
+                  <td colSpan={11} className="p-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Wallet className="w-10 h-10 text-slate-300" />
                       <p className="font-bold text-sm text-slate-600">لا توجد سندات قبض أو صرف مطابقة للبحث</p>
@@ -251,6 +268,8 @@ export const VouchersManager: React.FC = () => {
               ) : (
                 filteredVouchers.map((v) => {
                   const isReceipt = v.type === 'receipt';
+                  const status = v.status || 'posted';
+
                   return (
                     <tr key={v.id} className="hover:bg-slate-50/70 transition">
                       {/* Voucher Number */}
@@ -325,6 +344,37 @@ export const VouchersManager: React.FC = () => {
                         )}
                       </td>
 
+                      {/* Status Badge */}
+                      <td className="p-3.5 text-center">
+                        {status === 'posted' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>مرحّل</span>
+                          </span>
+                        )}
+                        {status === 'draft' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3" />
+                            <span>مسودة</span>
+                          </span>
+                        )}
+                        {status === 'reversed' && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200"
+                            title={`معكوس بتاريخ: ${v.reversalDate || '-'} | السبب: ${v.reversalReason || '-'}`}
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>معكوس محاسبياً</span>
+                          </span>
+                        )}
+                        {status === 'cancelled' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
+                            <Ban className="w-3 h-3" />
+                            <span>ملغي</span>
+                          </span>
+                        )}
+                      </td>
+
                       {/* Accounting Entry Mapping */}
                       <td className="p-3.5 text-center text-[10px] text-slate-600 font-mono">
                         <div title={`مدين: ${v.debitAccountNameAr} / دائن: ${v.creditAccountNameAr}`}>
@@ -344,17 +394,53 @@ export const VouchersManager: React.FC = () => {
                           >
                             <Printer className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`هل أنت متأكد من حذف السند رقم ${v.voucherNumber}؟`)) {
-                                deleteVoucher(v.id);
-                              }
-                            }}
-                            title="حذف السند"
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+
+                          {status === 'draft' && (
+                            <>
+                              <button
+                                onClick={() => postDocument('voucher', v.id)}
+                                title="ترحيل السند المحاسبي وتوليد القيد"
+                                className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = prompt('سبب إلغاء المسودة:') || 'إلغاء مسودة';
+                                  cancelDraftDocument('voucher', v.id, reason);
+                                }}
+                                title="إلغاء المسودة"
+                                className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm(`هل أنت متأكد من حذف مسودة السند ${v.voucherNumber}؟`)) {
+                                    deleteVoucher(v.id);
+                                  }
+                                }}
+                                title="حذف مسودة السند"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+
+                          {status === 'posted' && (
+                            <button
+                              onClick={() => {
+                                setVoucherToReverse(v);
+                                setReversalModalOpen(true);
+                              }}
+                              title="عكس محاسبي للسند المرحّل (إنشاء قيد عكسي)"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition flex items-center gap-1"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-bold">عكس</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -382,6 +468,24 @@ export const VouchersManager: React.FC = () => {
         <VoucherPrintModal
           voucher={selectedVoucherForPrint}
           onClose={() => setSelectedVoucherForPrint(null)}
+        />
+      )}
+
+      {/* Reversal Modal */}
+      {reversalModalOpen && voucherToReverse && (
+        <DocumentReversalModal
+          isOpen={reversalModalOpen}
+          documentType="voucher"
+          documentId={voucherToReverse.id}
+          documentNumber={voucherToReverse.voucherNumber}
+          documentAmount={voucherToReverse.amount}
+          onClose={() => {
+            setReversalModalOpen(false);
+            setVoucherToReverse(null);
+          }}
+          onConfirm={(reason, reversalDate) => {
+            reversePostedDocument('voucher', voucherToReverse.id, reason, reversalDate);
+          }}
         />
       )}
     </div>

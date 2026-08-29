@@ -141,7 +141,7 @@ export const SimpleExpenseFormModal: React.FC<SimpleExpenseFormModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { accounts, createSimpleExpense } = useAccounting();
+  const { accounts, createSimpleExpense, checkDateInFiscalYear, checkDateInFiscalPeriod } = useAccounting();
 
   const [category, setCategory] = useState<SimpleExpenseCategory>('electricity');
   const [title, setTitle] = useState('');
@@ -493,6 +493,38 @@ export const SimpleExpenseFormModal: React.FC<SimpleExpenseFormModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Fiscal Period & Year Warning Alert */}
+          {(() => {
+            const pCheck = checkDateInFiscalPeriod(date);
+            const yCheck = checkDateInFiscalYear(date);
+
+            if (pCheck.isClosed) {
+              return (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800 text-xs animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">تحذير رقابي حاسم: </span>
+                    الفترة المالية ({pCheck.period?.nameAr || date}) مقفلة تماماً. يمنع النظام تسجيل أو ترحيل فواتير المصروفات ضمن فترات مقفلة.
+                  </div>
+                </div>
+              );
+            }
+
+            if (!yCheck.isWithinYear) {
+              return (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-xs animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">تنبيه السنة المالية: </span>
+                    {yCheck.warningMessage}
+                  </div>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
 
           {/* 3. Amounts & Tax Calculation Card */}
           <div className="bg-gradient-to-br from-indigo-50/50 via-slate-50 to-white p-4.5 rounded-xl border border-indigo-100 space-y-4">

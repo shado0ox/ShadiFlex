@@ -13,6 +13,7 @@ import {
   SimpleExpenseInvoice,
   ApiKey,
   FiscalYearClosing,
+  FinancialPeriod,
   Branch,
   CashRegister,
   CashierShift,
@@ -32,6 +33,7 @@ import {
   INITIAL_SIMPLE_EXPENSES,
   INITIAL_API_KEYS,
   INITIAL_FISCAL_CLOSINGS,
+  INITIAL_FINANCIAL_PERIODS,
   INITIAL_BRANCHES,
   INITIAL_CASH_REGISTERS,
   INITIAL_CASHIER_SHIFTS,
@@ -377,6 +379,14 @@ export class LocalStorageAccountingRepository implements IAccountingRepository {
     this.setItem('fiscal_closings', closings);
   }
 
+  public loadFinancialPeriods(): FinancialPeriod[] {
+    return this.getItem<FinancialPeriod[]>('financial_periods', INITIAL_FINANCIAL_PERIODS);
+  }
+
+  public saveFinancialPeriods(periods: FinancialPeriod[]): void {
+    this.setItem('financial_periods', periods);
+  }
+
   // POS & Branches
   public loadBranches(): Branch[] {
     return this.getItem<Branch[]>('branches', INITIAL_BRANCHES);
@@ -450,6 +460,7 @@ export class LocalStorageAccountingRepository implements IAccountingRepository {
       journalEntries: this.loadJournalEntries(),
       apiKeys: includeSanitizedKeysOnly ? sanitizedKeys : [],
       fiscalClosings: this.loadFiscalClosings(),
+      financialPeriods: this.loadFinancialPeriods(),
       branches: this.loadBranches(),
       cashRegisters: this.loadCashRegisters(),
       cashierShifts: this.loadCashierShifts(),
@@ -492,6 +503,7 @@ export class LocalStorageAccountingRepository implements IAccountingRepository {
       if (data.journalEntries) this.saveJournalEntries(data.journalEntries);
       if (data.apiKeys) this.saveApiKeys(data.apiKeys);
       if (data.fiscalClosings) this.saveFiscalClosings(data.fiscalClosings);
+      if (data.financialPeriods) this.saveFinancialPeriods(data.financialPeriods);
       if (data.branches) this.saveBranches(data.branches);
       if (data.cashRegisters) this.saveCashRegisters(data.cashRegisters);
       if (data.cashierShifts) this.saveCashierShifts(data.cashierShifts);

@@ -28,6 +28,10 @@ import {
   DependencyCheckResult,
   DocumentStatus,
   DocumentType,
+  AuditLogEntry,
+  AuditLogAction,
+  AuditLogEntityType,
+  FinancialPeriod,
 } from '../types/accounting';
 import { DEFAULT_CHART_OF_ACCOUNTS } from '../data/defaultChartOfAccounts';
 import {
@@ -47,13 +51,22 @@ import {
   INITIAL_CASH_REGISTERS,
   INITIAL_CASHIER_SHIFTS,
   INITIAL_PARKED_ORDERS,
+  INITIAL_FINANCIAL_PERIODS,
 } from '../data/initialData';
+import {
+  generateDefaultFinancialPeriods,
+  isDateInClosedPeriod,
+  checkDateInFiscalYear,
+  isReportEligibleJournalEntry,
+  getPeriodForDate,
+} from '../utils/fiscalPeriodUtils';
 import { generateZatcaTlvBase64 } from '../utils/zatca';
 import { tafqeetArabic } from '../utils/currency';
 import { getAccountingRepository } from '../services/dataService';
 import { generateUUID, generateEntityId } from '../utils/uuid';
 import { documentSequenceService } from '../services/documentSequenceService';
 import { roundMoney, moneyAdd, moneySub, moneyEquals, isZeroMoney } from '../utils/money';
+import { auditLogService } from '../services/auditLogService';
 import {
   validateJournalEntry,
   validateAccountForPosting,
@@ -94,6 +107,7 @@ interface AccountingContextType {
   stockMovements: StockMovement[];
   journalEntries: JournalEntry[];
   companySettings: CompanySettings;
+  auditLogs: AuditLogEntry[];
   activeTab: string;
   setActiveTab: (tab: string) => void;
 
@@ -178,6 +192,13 @@ interface AccountingContextType {
   closeFiscalYear: (year: number, closingDate: string, closedBy: string, notes?: string) => Promise<FiscalYearClosing>;
   reopenFiscalYear: (closingId: string) => Promise<void>;
 
+  // Financial Periods Management
+  financialPeriods: FinancialPeriod[];
+  closeFinancialPeriod: (periodId: string, closedBy?: string, notes?: string) => Promise<FinancialPeriod>;
+  reopenFinancialPeriod: (periodId: string, reason: string, reopenedBy?: string) => Promise<FinancialPeriod>;
+  checkDateInFiscalPeriod: (dateStr: string) => { isClosed: boolean; period?: FinancialPeriod };
+  checkDateInFiscalYear: (dateStr: string) => { isWithinYear: boolean; warningMessage?: string };
+
   // Master Data CRUD & Validation
   addCustomer: (customer: Omit<Customer, 'id' | 'balance'>) => Customer;
   updateCustomer: (id: string, customer: Partial<Customer>) => void;
@@ -232,6 +253,17 @@ interface AccountingContextType {
   createPreImportEmergencyBackup: () => boolean;
   getEmergencyBackupRecord: () => EmergencyBackupRecord | null;
   restoreEmergencyBackup: () => boolean;
+  clearAuditLogs: () => void;
+  logAuditEvent: (params: {
+    action: AuditLogAction;
+    entityType: AuditLogEntityType;
+    entityId: string;
+    before?: Record<string, unknown> | null;
+    after?: Record<string, unknown> | null;
+    reason?: string;
+    source?: 'web_ui' | 'pos_terminal' | 'import_file' | 'system_reset' | 'api_simulation';
+    metadata?: Record<string, unknown>;
+  }) => AuditLogEntry;
 
   // Financial Calculators & Statements
   getAccountStatement: (accountId: string, startDate?: string, endDate?: string) => {
@@ -311,8 +343,132 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [cashRegisters, setCashRegisters] = useState<CashRegister[]>(() => repo.loadCashRegisters());
   const [cashierShifts, setCashierShifts] = useState<CashierShift[]>(() => repo.loadCashierShifts());
   const [parkedOrders, setParkedOrders] = useState<ParkedOrder[]>(() => repo.loadParkedOrders());
+  const [financialPeriods, setFinancialPeriods] = useState<FinancialPeriod[]>(() => repo.loadFinancialPeriods());
   const [activeBranchId, setActiveBranchId] = useState<string>(() => repo.loadActiveBranchId());
   const [activeRegisterId, setActiveRegisterId] = useState<string>(() => repo.loadActiveRegisterId());
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => auditLogService.getLogs());
+
+  const logAuditEvent = (params: {
+    action: AuditLogAction;
+    entityType: AuditLogEntityType;
+    entityId: string;
+    before?: Record<string, unknown> | null;
+    after?: Record<string, unknown> | null;
+    reason?: string;
+    source?: 'web_ui' | 'pos_terminal' | 'import_file' | 'system_reset' | 'api_simulation';
+    metadata?: Record<string, unknown>;
+  }): AuditLogEntry => {
+    const entry = auditLogService.logAction(params);
+    setAuditLogs(auditLogService.getLogs());
+    return entry;
+  };
+
+  const clearAuditLogs = () => {
+    auditLogService.clearLogs();
+    setAuditLogs([]);
+  };
+
+  // Check if a date falls in a closed financial period
+  const checkDateInFiscalPeriod = (dateStr: string): { isClosed: boolean; period?: FinancialPeriod } => {
+    return isDateInClosedPeriod(dateStr, financialPeriods);
+  };
+
+  // Check if a date is within the company's active fiscal year
+  const checkDateInFiscalYearWrapper = (dateStr: string): { isWithinYear: boolean; warningMessage?: string } => {
+    return checkDateInFiscalYear(
+      dateStr,
+      companySettings.fiscalYearStart,
+      companySettings.fiscalYearEnd,
+      companySettings.fiscalYear
+    );
+  };
+
+  // Strict assertion: block creating/editing/deleting/posting documents in closed periods
+  const assertDateNotInClosedPeriod = (dateStr?: string, docName: string = 'المستند') => {
+    if (!dateStr) return;
+    const { isClosed, period } = isDateInClosedPeriod(dateStr, financialPeriods);
+    if (isClosed && period) {
+      throw new Error(
+        `لا يمكن إنشاء أو تعديل أو حذف أو ترحيل ${docName} بتاريخ (${dateStr.split('T')[0]}) لأنه يقع ضمن فترة مالية مقفلة (${period.nameAr}). يرجى إعادة فتح الفترة أولاً.`
+      );
+    }
+  };
+
+  // Close a financial period locally
+  const closeFinancialPeriod = async (
+    periodId: string,
+    closedBy: string = 'المدير المالي المعتمد',
+    notes?: string
+  ): Promise<FinancialPeriod> => {
+    const period = financialPeriods.find((p) => p.id === periodId);
+    if (!period) throw new Error('الفترة المالية غير موجودة');
+    if (period.status === 'closed') throw new Error('الفترة المالية مقفلة بالفعل');
+
+    const nowIso = new Date().toISOString();
+    const updatedPeriod: FinancialPeriod = {
+      ...period,
+      status: 'closed',
+      closedAt: nowIso,
+      closedBy,
+      notes: notes || `تم إقفال الفترة المالية ${period.nameAr} محلياً.`,
+    };
+
+    const updatedPeriods = financialPeriods.map((p) => (p.id === periodId ? updatedPeriod : p));
+    setFinancialPeriods(updatedPeriods);
+
+    logAuditEvent({
+      action: 'period_close',
+      entityType: 'fiscal_period',
+      entityId: periodId,
+      before: period as unknown as Record<string, unknown>,
+      after: updatedPeriod as unknown as Record<string, unknown>,
+      reason: `إقفال الفترة المالية: ${period.nameAr} (${period.startDate} إلى ${period.endDate})`,
+      source: 'web_ui',
+      metadata: { periodName: period.nameAr, year: period.year, closedBy },
+    });
+
+    return updatedPeriod;
+  };
+
+  // Reopen a financial period (Mandates reason and logs to Audit Log)
+  const reopenFinancialPeriod = async (
+    periodId: string,
+    reason: string,
+    reopenedBy: string = 'المدير المالي المعتمد'
+  ): Promise<FinancialPeriod> => {
+    if (!reason || !reason.trim()) {
+      throw new Error('لا يمكن إعادة فتح الفترة المالية دون إدخال سبب واضح ومبرر يسجل في سجل التدقيق (Audit Log).');
+    }
+
+    const period = financialPeriods.find((p) => p.id === periodId);
+    if (!period) throw new Error('الفترة المالية غير موجودة');
+    if (period.status === 'open') throw new Error('الفترة المالية مفتوحة بالفعل');
+
+    const nowIso = new Date().toISOString();
+    const updatedPeriod: FinancialPeriod = {
+      ...period,
+      status: 'open',
+      reopenedAt: nowIso,
+      reopenedBy,
+      reopenReason: reason.trim(),
+    };
+
+    const updatedPeriods = financialPeriods.map((p) => (p.id === periodId ? updatedPeriod : p));
+    setFinancialPeriods(updatedPeriods);
+
+    logAuditEvent({
+      action: 'period_reopen',
+      entityType: 'fiscal_period',
+      entityId: periodId,
+      before: period as unknown as Record<string, unknown>,
+      after: updatedPeriod as unknown as Record<string, unknown>,
+      reason: `إعادة فتح الفترة المالية ${period.nameAr} - السبب: ${reason.trim()}`,
+      source: 'web_ui',
+      metadata: { periodName: period.nameAr, year: period.year, reopenedBy, reopenReason: reason.trim() },
+    });
+
+    return updatedPeriod;
+  };
 
   // Calculate current active shift for active register
   const activeShift = cashierShifts.find(
@@ -351,6 +507,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     repo.saveSimpleExpenses(simpleExpenses);
     repo.saveApiKeys(apiKeys);
     repo.saveFiscalClosings(fiscalClosings);
+    repo.saveFinancialPeriods(financialPeriods);
     repo.saveJournalEntries(journalEntries);
     repo.saveBranches(branches);
     repo.saveCashRegisters(cashRegisters);
@@ -372,6 +529,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     simpleExpenses,
     apiKeys,
     fiscalClosings,
+    financialPeriods,
     journalEntries,
     branches,
     cashRegisters,
@@ -394,8 +552,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const balances: Record<string, number> = {};
 
     entries.forEach((entry) => {
-      // Exclude cancelled and draft entries from posted ledger balances
-      if (entry.status === 'cancelled' || entry.status === 'draft') return;
+      // Exclude non-eligible entries (draft, cancelled, reversed, or reversal entries)
+      if (!isReportEligibleJournalEntry(entry)) return;
 
       entry.lines.forEach((line) => {
         if (balances[line.accountId] === undefined) balances[line.accountId] = 0;
@@ -427,7 +585,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const nowIso = new Date().toISOString();
     const [issueDate, issueTimePart] = nowIso.split('T');
     const issueTime = issueTimePart ? issueTimePart.substring(0, 8) : '12:00:00';
-    const fiscalYear = getDocFiscalYear(invoiceData.issueDate || issueDate);
+    const effectiveDate = invoiceData.issueDate || issueDate;
+    assertDateNotInClosedPeriod(effectiveDate, 'فاتورة مبيعات');
+
+    const fiscalYear = getDocFiscalYear(effectiveDate);
 
     // Monotonic Document Sequence
     const invoiceNumber = invoiceData.invoiceNumber && !invoiceData.invoiceNumber.startsWith('INV-AUTO')
@@ -437,7 +598,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const tlvBase64 = generateZatcaTlvBase64({
       sellerName: companySettings.nameAr,
       vatNumber: companySettings.vatNumber,
-      timestamp: `${invoiceData.issueDate || issueDate}T${issueTime}Z`,
+      timestamp: `${effectiveDate}T${issueTime}Z`,
       totalAmount: invoiceData.totalAmount,
       vatAmount: invoiceData.vatTotal,
     });
@@ -586,12 +747,28 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     setSalesInvoices([newInvoice, ...salesInvoices]);
+
+    logAuditEvent({
+      action: status === 'posted' ? 'post' : 'create',
+      entityType: 'sales_invoice',
+      entityId: newInvoice.id,
+      after: newInvoice as unknown as Record<string, unknown>,
+      reason: `إنشاء فاتورة مبيعات ${newInvoice.invoiceNumber}`,
+      source: 'web_ui',
+      metadata: { invoiceNumber: newInvoice.invoiceNumber, totalAmount: newInvoice.totalAmount },
+    });
+
     return newInvoice;
   };
 
   const updateSalesInvoice = (id: string, invoiceUpdate: Partial<SalesInvoice>) => {
     const existing = salesInvoices.find((i) => i.id === id);
     if (!existing) return;
+
+    assertDateNotInClosedPeriod(existing.issueDate, 'فاتورة مبيعات');
+    if (invoiceUpdate.issueDate) {
+      assertDateNotInClosedPeriod(invoiceUpdate.issueDate, 'فاتورة مبيعات');
+    }
 
     if (existing.status === 'posted' || existing.status === 'reversed') {
       const financialKeys = ['totalAmount', 'taxableAmount', 'vatTotal', 'subtotal', 'items', 'customerId'];
@@ -601,12 +778,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    setSalesInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, ...invoiceUpdate } : inv)));
+    const updated = { ...existing, ...invoiceUpdate };
+    setSalesInvoices((prev) => prev.map((inv) => (inv.id === id ? updated : inv)));
+
+    logAuditEvent({
+      action: 'update',
+      entityType: 'sales_invoice',
+      entityId: id,
+      before: existing as unknown as Record<string, unknown>,
+      after: updated as unknown as Record<string, unknown>,
+      reason: `تعديل فاتورة مبيعات ${existing.invoiceNumber}`,
+      source: 'web_ui',
+    });
   };
 
   const deleteSalesInvoice = (id: string) => {
     const target = salesInvoices.find((i) => i.id === id);
     if (!target) return;
+
+    assertDateNotInClosedPeriod(target.issueDate, 'فاتورة مبيعات');
 
     if (target.status === 'posted') {
       throw new Error('لا يمكن حذف فاتورة ضريبية مُرحّلة مباشرة حفاظاً على التسلسل المحاسبي والضريبي ZATCA. يرجى استخدام الإلغاء العكسي (Reverse/Credit Note).');
@@ -624,7 +814,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const newId = generateEntityId('pur');
     const nowIso = new Date().toISOString();
     const [today] = nowIso.split('T');
-    const fiscalYear = getDocFiscalYear(purchaseData.issueDate || today);
+    const effectiveDate = purchaseData.issueDate || today;
+    assertDateNotInClosedPeriod(effectiveDate, 'فاتورة مشتريات');
+
+    const fiscalYear = getDocFiscalYear(effectiveDate);
 
     // Monotonic Document Sequence
     const invoiceNumber = purchaseData.invoiceNumber && !purchaseData.invoiceNumber.startsWith('PUR-AUTO')
@@ -766,12 +959,28 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     setPurchaseInvoices([newPurchase, ...purchaseInvoices]);
+
+    logAuditEvent({
+      action: status === 'posted' ? 'post' : 'create',
+      entityType: 'purchase_invoice',
+      entityId: newPurchase.id,
+      after: newPurchase as unknown as Record<string, unknown>,
+      reason: `إنشاء فاتورة مشتريات ${newPurchase.invoiceNumber}`,
+      source: 'web_ui',
+      metadata: { invoiceNumber: newPurchase.invoiceNumber, totalAmount: newPurchase.totalAmount },
+    });
+
     return newPurchase;
   };
 
   const updatePurchaseInvoice = (id: string, invoiceUpdate: Partial<PurchaseInvoice>) => {
     const existing = purchaseInvoices.find((p) => p.id === id);
     if (!existing) return;
+
+    assertDateNotInClosedPeriod(existing.issueDate, 'فاتورة مشتريات');
+    if (invoiceUpdate.issueDate) {
+      assertDateNotInClosedPeriod(invoiceUpdate.issueDate, 'فاتورة مشتريات');
+    }
 
     if (existing.status === 'posted' || existing.status === 'reversed') {
       const financialKeys = ['totalAmount', 'taxableAmount', 'vatTotal', 'subtotal', 'items', 'supplierId'];
@@ -781,12 +990,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    setPurchaseInvoices((prev) => prev.map((pur) => (pur.id === id ? { ...pur, ...invoiceUpdate } : pur)));
+    const updated = { ...existing, ...invoiceUpdate };
+    setPurchaseInvoices((prev) => prev.map((pur) => (pur.id === id ? updated : pur)));
+
+    logAuditEvent({
+      action: 'update',
+      entityType: 'purchase_invoice',
+      entityId: id,
+      before: existing as unknown as Record<string, unknown>,
+      after: updated as unknown as Record<string, unknown>,
+      reason: `تعديل فاتورة مشتريات ${existing.invoiceNumber}`,
+      source: 'web_ui',
+    });
   };
 
   const deletePurchaseInvoice = (id: string) => {
     const target = purchaseInvoices.find((p) => p.id === id);
     if (!target) return;
+
+    assertDateNotInClosedPeriod(target.issueDate, 'فاتورة مشتريات');
 
     if (target.status === 'posted') {
       throw new Error('لا يمكن حذف فاتورة مشتريات مُرحّلة مباشرة حفاظاً على التسلسل المحاسبي. يرجى استخدام الإلغاء العكسي.');
@@ -805,7 +1027,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const nowIso = new Date().toISOString();
     const [issueDate, issueTimePart] = nowIso.split('T');
     const issueTime = issueTimePart ? issueTimePart.substring(0, 8) : '12:00:00';
-    const fiscalYear = getDocFiscalYear(noteData.issueDate || issueDate);
+    const effectiveDate = noteData.issueDate || issueDate;
+    assertDateNotInClosedPeriod(effectiveDate, noteData.type === 'credit_note' ? 'إشعار دائن' : 'إشعار مدين');
+
+    const fiscalYear = getDocFiscalYear(effectiveDate);
 
     // Monotonic Document Sequence
     const noteNumber = noteData.noteNumber && !noteData.noteNumber.startsWith('NOTE-AUTO')
@@ -819,7 +1044,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const tlvBase64 = generateZatcaTlvBase64({
       sellerName: companySettings.nameAr,
       vatNumber: companySettings.vatNumber,
-      timestamp: `${noteData.issueDate || issueDate}T${noteData.issueTime || issueTime}Z`,
+      timestamp: `${effectiveDate}T${noteData.issueTime || issueTime}Z`,
       totalAmount: noteData.totalAmount,
       vatAmount: noteData.vatTotal,
     });
@@ -1100,12 +1325,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     setDebitCreditNotes([newNote, ...debitCreditNotes]);
+
+    logAuditEvent({
+      action: status === 'posted' ? 'post' : 'create',
+      entityType: 'debit_credit_note',
+      entityId: newNote.id,
+      after: newNote as unknown as Record<string, unknown>,
+      reason: `إنشاء ${newNote.type === 'credit_note' ? 'إشعار دائن' : 'إشعار مدين'} ${newNote.noteNumber}`,
+      source: 'web_ui',
+      metadata: { noteNumber: newNote.noteNumber, totalAmount: newNote.totalAmount, type: newNote.type },
+    });
+
     return newNote;
   };
 
   const deleteDebitCreditNote = (id: string) => {
     const target = debitCreditNotes.find((n) => n.id === id);
     if (!target) return;
+
+    assertDateNotInClosedPeriod(target.issueDate, target.type === 'credit_note' ? 'إشعار دائن' : 'إشعار مدين');
 
     if (target.status === 'posted') {
       throw new Error('لا يمكن حذف إشعار دائن/مدين مُرحّل مباشرة حفاظاً على التسلسل الضريبي ZATCA. يرجى استخدام الإلغاء العكسي.');
@@ -1119,6 +1357,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Create Receipt / Payment Voucher (سند قبض / سند صرف)
   const createVoucher = async (voucherData: Omit<Voucher, 'id' | 'amountInWordsAr' | 'journalEntryId' | 'createdAt'>): Promise<Voucher> => {
+    const nowIso = new Date().toISOString();
+    const [today] = nowIso.split('T');
+    const effectiveDate = voucherData.date || today;
+    assertDateNotInClosedPeriod(effectiveDate, voucherData.type === 'receipt' ? 'سند قبض' : 'سند صرف');
+
     // Validation: prevent paying an amount larger than remaining invoice balance
     if (voucherData.relatedInvoiceId) {
       if (voucherData.type === 'receipt') {
@@ -1145,9 +1388,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     const newId = generateEntityId('vch');
-    const nowIso = new Date().toISOString();
-    const [today] = nowIso.split('T');
-    const fiscalYear = getDocFiscalYear(voucherData.date || today);
+    const fiscalYear = getDocFiscalYear(effectiveDate);
     const amountInWords = tafqeetArabic(voucherData.amount);
 
     const seqType = voucherData.type === 'receipt' ? 'receipt_voucher' : 'payment_voucher';
@@ -1187,7 +1428,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const newJournalEntry: JournalEntry = {
         id: jvId,
         entryNumber: jvNumber,
-        date: voucherData.date || today,
+        date: effectiveDate,
         referenceType: 'voucher',
         referenceId: newId,
         referenceNumber: voucherNumber,
@@ -1267,12 +1508,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     setVouchers([newVoucher, ...vouchers]);
+
+    logAuditEvent({
+      action: status === 'posted' ? 'post' : 'create',
+      entityType: 'voucher',
+      entityId: newVoucher.id,
+      after: newVoucher as unknown as Record<string, unknown>,
+      reason: `إنشاء ${newVoucher.type === 'receipt' ? 'سند قبض' : 'سند صرف'} ${newVoucher.voucherNumber}`,
+      source: 'web_ui',
+      metadata: { voucherNumber: newVoucher.voucherNumber, amount: newVoucher.amount, type: newVoucher.type },
+    });
+
     return newVoucher;
   };
 
   const deleteVoucher = (id: string) => {
     const target = vouchers.find((v) => v.id === id);
     if (!target) return;
+
+    assertDateNotInClosedPeriod(target.date, 'سند مالي');
 
     if (target.status === 'posted') {
       throw new Error('لا يمكن حذف سند قبض/صرف مُرحّل مباشرة حفاظاً على دقة القيود المحاسبية. يرجى استخدام القيد العكسي (Reverse).');
@@ -1299,7 +1553,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const newId = generateEntityId('exp');
     const nowIso = new Date().toISOString();
     const [today] = nowIso.split('T');
-    const fiscalYear = getDocFiscalYear(expenseData.date || today);
+    const effectiveDate = expenseData.date || today;
+    assertDateNotInClosedPeriod(effectiveDate, 'فاتورة مصروف');
+
+    const fiscalYear = getDocFiscalYear(effectiveDate);
 
     const expNumber = documentSequenceService.getNextNumber(
       'simple_expense',
@@ -1355,7 +1612,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const newJournalEntry: JournalEntry = {
         id: jvId,
         entryNumber: jvNumber,
-        date: expenseData.date || today,
+        date: effectiveDate,
         referenceType: 'simple_expense',
         referenceId: newId,
         referenceNumber: expNumber,
@@ -1387,12 +1644,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     setSimpleExpenses([newExpense, ...simpleExpenses]);
+
+    logAuditEvent({
+      action: status === 'posted' ? 'post' : 'create',
+      entityType: 'simple_expense',
+      entityId: newExpense.id,
+      after: newExpense as unknown as Record<string, unknown>,
+      reason: `إنشاء فاتورة مصروف ${newExpense.expenseNumber} (${newExpense.title})`,
+      source: 'web_ui',
+      metadata: { expenseNumber: newExpense.expenseNumber, totalAmount: newExpense.totalAmount },
+    });
+
     return newExpense;
   };
 
   const deleteSimpleExpense = (id: string) => {
     const target = simpleExpenses.find((e) => e.id === id);
     if (!target) return;
+
+    assertDateNotInClosedPeriod(target.date, 'فاتورة مصروف');
 
     if (target.status === 'posted') {
       throw new Error('لا يمكن حذف فاتورة مصروفات مرحّلة مباشرة. يرجى استخدام القيد العكسي (Reverse).');
@@ -1430,17 +1700,53 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     setApiKeys((prev) => [newApiKey, ...prev]);
+
+    logAuditEvent({
+      action: 'create',
+      entityType: 'api_key',
+      entityId: newApiKey.id,
+      after: { name: newApiKey.name, maskedKey: newApiKey.maskedKey, environment: newApiKey.environment },
+      reason: `إنشاء مفتاح API تجريبي: ${newApiKey.name}`,
+      source: 'web_ui',
+      metadata: { keyName: newApiKey.name, environment: newApiKey.environment },
+    });
+
     return newApiKey;
   };
 
   const toggleApiKeyStatus = (id: string) => {
+    const target = apiKeys.find((k) => k.id === id);
     setApiKeys((prev) =>
       prev.map((k) => (k.id === id ? { ...k, isActive: !k.isActive } : k))
     );
+
+    if (target) {
+      logAuditEvent({
+        action: 'api_key_toggle',
+        entityType: 'api_key',
+        entityId: id,
+        before: { name: target.name, isActive: target.isActive },
+        after: { name: target.name, isActive: !target.isActive },
+        reason: `${target.isActive ? 'تعطيل' : 'تفعيل'} مفتاح API تجريبي: ${target.name}`,
+        source: 'web_ui',
+      });
+    }
   };
 
   const deleteApiKey = (id: string) => {
+    const target = apiKeys.find((k) => k.id === id);
     setApiKeys((prev) => prev.filter((k) => k.id !== id));
+
+    if (target) {
+      logAuditEvent({
+        action: 'delete',
+        entityType: 'api_key',
+        entityId: id,
+        before: { name: target.name, maskedKey: target.maskedKey },
+        reason: `حذف مفتاح API تجريبي: ${target.name}`,
+        source: 'web_ui',
+      });
+    }
   };
 
   // Fiscal Year Closing & Account Roll-Forward (إقفال السنة المالية وترحيل الأرصدة)
@@ -1600,6 +1906,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const inv = salesInvoices.find((i) => i.id === invoiceId);
     if (!inv) return;
 
+    const [today] = new Date().toISOString().split('T');
+    assertDateNotInClosedPeriod(today, 'تحصيل دفعة فاتورة');
+
     const newPaidAmount = inv.paidAmount + amount;
     const newRemaining = Math.max(0, inv.totalAmount - newPaidAmount);
     const newStatus: PaymentStatus = newRemaining === 0 ? 'paid' : 'partial';
@@ -1619,7 +1928,6 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       targetAccName = 'حساب نقاط البيع ومدى وسيط';
     }
 
-    const [today] = new Date().toISOString().split('T');
     const fiscalYear = getDocFiscalYear(today);
     const jvId = generateEntityId('jv');
     const jvNumber = documentSequenceService.getNextNumber(
@@ -1691,7 +1999,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const newId = generateEntityId('jv');
     const nowIso = new Date().toISOString();
     const [today] = nowIso.split('T');
-    const fiscalYear = getDocFiscalYear(entry.date || today);
+    const effectiveDate = entry.date || today;
+    assertDateNotInClosedPeriod(effectiveDate, 'قيد يومية');
+
+    const fiscalYear = getDocFiscalYear(effectiveDate);
 
     const entryNumber = entry.entryNumber && !entry.entryNumber.startsWith('JV-AUTO')
       ? entry.entryNumber
@@ -1721,6 +2032,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const updatedJournal = [sanitizedEntry, ...journalEntries];
     setJournalEntries(updatedJournal);
     setAccounts((prevAccs) => recalculateAccountBalances(updatedJournal, prevAccs));
+
+    logAuditEvent({
+      action: status === 'posted' ? 'post' : 'create',
+      entityType: 'journal_entry',
+      entityId: sanitizedEntry.id,
+      after: sanitizedEntry as unknown as Record<string, unknown>,
+      reason: `إنشاء قيد يومية يدوي ${sanitizedEntry.entryNumber} (${sanitizedEntry.narrationAr || ''})`,
+      source: 'web_ui',
+      metadata: { entryNumber: sanitizedEntry.entryNumber, totalDebit: sanitizedEntry.totalDebit },
+    });
   };
 
   // -------------------------------------------------------------
@@ -1735,10 +2056,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!inv) throw new Error('فاتورة المبيعات غير موجودة');
       if (inv.status !== 'draft') throw new Error('فقط الفواتير بحالة مسودة (draft) يمكن ترحيلها');
 
+      const effectiveDate = inv.issueDate || today;
+      assertDateNotInClosedPeriod(effectiveDate, 'فاتورة مبيعات');
+
       // Pre-validation of stock availability
       assertSaleInventory(inv.items, inventory);
 
-      const fiscalYear = getDocFiscalYear(inv.issueDate || today);
+      const fiscalYear = getDocFiscalYear(effectiveDate);
       const jvId = generateEntityId('jv');
       const jvNumber = documentSequenceService.getNextNumber('journal_entry', fiscalYear, journalEntries.map((j) => j.entryNumber));
 
@@ -1863,7 +2187,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!pur) throw new Error('فاتورة المشتريات غير موجودة');
       if (pur.status !== 'draft') throw new Error('فقط فواتير المشتريات بحالة مسودة يمكن ترحيلها');
 
-      const fiscalYear = getDocFiscalYear(pur.issueDate || today);
+      const effectiveDate = pur.issueDate || today;
+      assertDateNotInClosedPeriod(effectiveDate, 'فاتورة مشتريات');
+
+      const fiscalYear = getDocFiscalYear(effectiveDate);
       const jvId = generateEntityId('jv');
       const jvNumber = documentSequenceService.getNextNumber('journal_entry', fiscalYear, journalEntries.map((j) => j.entryNumber));
 
@@ -1984,13 +2311,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!note) throw new Error('الإشعار غير موجود');
       if (note.status !== 'draft') throw new Error('فقط الإشعارات بحالة مسودة يمكن ترحيلها');
 
+      const effectiveDate = note.issueDate || today;
+      assertDateNotInClosedPeriod(effectiveDate, note.type === 'credit_note' ? 'إشعار دائن' : 'إشعار مدين');
+
       if (note.affectInventory && note.items && note.items.length > 0) {
         if (note.type === 'debit_note' && note.partyType === 'supplier') {
           assertSaleInventory(note.items, inventory);
         }
       }
 
-      const fiscalYear = getDocFiscalYear(note.issueDate || today);
+      const fiscalYear = getDocFiscalYear(effectiveDate);
       const jvId = generateEntityId('jv');
       const jvNumber = documentSequenceService.getNextNumber('journal_entry', fiscalYear, journalEntries.map((j) => j.entryNumber));
 
@@ -2064,7 +2394,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const newJournalEntry: JournalEntry = {
         id: jvId,
         entryNumber: jvNumber,
-        date: note.issueDate || today,
+        date: effectiveDate,
         referenceType: note.type === 'credit_note' ? 'credit_note' : 'debit_note',
         referenceId: note.id,
         referenceNumber: note.noteNumber,
@@ -2094,7 +2424,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               id: generateEntityId('sm'),
               itemId: item.id,
               itemName: item.nameAr,
-              date: note.issueDate || today,
+              date: effectiveDate,
               type: isAdding ? 'return_in' : 'return_out',
               quantity: lineItem.quantity,
               previousStock: prevStock,
@@ -2138,7 +2468,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!vch) throw new Error('السند غير موجود');
       if (vch.status !== 'draft') throw new Error('فقط السندات بحالة مسودة يمكن ترحيلها');
 
-      const fiscalYear = getDocFiscalYear(vch.date || today);
+      const effectiveDate = vch.date || today;
+      assertDateNotInClosedPeriod(effectiveDate, vch.type === 'receipt' ? 'سند قبض' : 'سند صرف');
+
+      const fiscalYear = getDocFiscalYear(effectiveDate);
       const jvId = generateEntityId('jv');
       const jvNumber = documentSequenceService.getNextNumber('journal_entry', fiscalYear, journalEntries.map((j) => j.entryNumber));
 
@@ -2166,7 +2499,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const newJournalEntry: JournalEntry = {
         id: jvId,
         entryNumber: jvNumber,
-        date: vch.date || today,
+        date: effectiveDate,
         referenceType: 'voucher',
         referenceId: vch.id,
         referenceNumber: vch.voucherNumber,
@@ -2189,43 +2522,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             prev.map((c) => (c.id === vch.partyId ? { ...c, balance: Math.max(0, c.balance - vch.amount) } : c))
           );
         }
-        if (vch.relatedInvoiceId) {
-          setSalesInvoices((prev) =>
-            prev.map((inv) => {
-              if (inv.id === vch.relatedInvoiceId || inv.invoiceNumber === vch.relatedInvoiceNumber) {
-                const newPaid = inv.paidAmount + vch.amount;
-                const newRemaining = Math.max(0, inv.totalAmount - newPaid);
-                return {
-                  ...inv,
-                  paidAmount: newPaid,
-                  remainingAmount: newRemaining,
-                  paymentStatus: newRemaining === 0 ? 'paid' : 'partial',
-                };
-              }
-              return inv;
-            })
-          );
-        }
       } else if (vch.type === 'payment') {
         if (vch.partyType === 'supplier' && vch.partyId) {
           setSuppliers((prev) =>
             prev.map((s) => (s.id === vch.partyId ? { ...s, balance: Math.max(0, s.balance - vch.amount) } : s))
-          );
-        }
-        if (vch.relatedInvoiceId) {
-          setPurchaseInvoices((prev) =>
-            prev.map((inv) => {
-              if (inv.id === vch.relatedInvoiceId || inv.invoiceNumber === vch.relatedInvoiceNumber) {
-                const newPaid = (inv.paidAmount || 0) + vch.amount;
-                const isPaid = newPaid >= inv.totalAmount;
-                return {
-                  ...inv,
-                  paidAmount: newPaid,
-                  paymentStatus: isPaid ? 'paid' : 'partial',
-                };
-              }
-              return inv;
-            })
           );
         }
       }
@@ -2239,7 +2539,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!exp) throw new Error('المصروف غير موجود');
       if (exp.status !== 'draft') throw new Error('فقط المصروفات بحالة مسودة يمكن ترحيلها');
 
-      const fiscalYear = getDocFiscalYear(exp.date || today);
+      const effectiveDate = exp.date || today;
+      assertDateNotInClosedPeriod(effectiveDate, 'فاتورة مصروف');
+
+      const fiscalYear = getDocFiscalYear(effectiveDate);
       const jvId = generateEntityId('jv');
       const jvNumber = documentSequenceService.getNextNumber('journal_entry', fiscalYear, journalEntries.map((j) => j.entryNumber));
 
@@ -2280,7 +2583,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const newJournalEntry: JournalEntry = {
         id: jvId,
         entryNumber: jvNumber,
-        date: exp.date || today,
+        date: effectiveDate,
         referenceType: 'simple_expense',
         referenceId: exp.id,
         referenceNumber: exp.expenseNumber,
@@ -2305,12 +2608,24 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!entry) throw new Error('القيد المحاسبي غير موجود');
       if (entry.status !== 'draft') throw new Error('فقط القيود بحالة مسودة يمكن ترحيلها');
 
+      const effectiveDate = entry.date || today;
+      assertDateNotInClosedPeriod(effectiveDate, 'قيد محاسبي');
+
       const updatedJournal = journalEntries.map((j) =>
         j.id === id ? { ...j, status: 'posted' as DocumentStatus, postedAt: nowIso } : j
       );
       setJournalEntries(updatedJournal);
       setAccounts((prevAccs) => recalculateAccountBalances(updatedJournal, prevAccs));
     }
+
+    logAuditEvent({
+      action: 'post',
+      entityType: type === 'simple_expense' ? 'simple_expense' : (type as any),
+      entityId: id,
+      reason: `ترحيل مستند من نوع ${type} برقم معرف ${id}`,
+      source: 'web_ui',
+      metadata: { documentType: type, documentId: id },
+    });
   };
 
   const cancelDraftDocument = async (type: DocumentType, id: string, reason?: string): Promise<void> => {
@@ -2320,6 +2635,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (type === 'sales_invoice') {
       const target = salesInvoices.find((i) => i.id === id);
       if (!target) throw new Error('المستند غير موجود');
+      assertDateNotInClosedPeriod(target.issueDate, 'فاتورة مبيعات');
       if (target.status === 'posted' || target.status === 'issued') {
         throw new Error('لا يمكن إلغاء مستند مُرحّل مباشرة؛ يجب استخدام القيد العكسي (reversePostedDocument).');
       }
@@ -2329,6 +2645,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } else if (type === 'purchase_invoice') {
       const target = purchaseInvoices.find((p) => p.id === id);
       if (!target) throw new Error('المستند غير موجود');
+      assertDateNotInClosedPeriod(target.issueDate, 'فاتورة مشتريات');
       if (target.status === 'posted') {
         throw new Error('لا يمكن إلغاء مستند مُرحّل مباشرة؛ يجب استخدام القيد العكسي.');
       }
@@ -2338,6 +2655,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } else if (type === 'debit_credit_note') {
       const target = debitCreditNotes.find((n) => n.id === id);
       if (!target) throw new Error('المستند غير موجود');
+      assertDateNotInClosedPeriod(target.issueDate, target.type === 'credit_note' ? 'إشعار دائن' : 'إشعار مدين');
       if (target.status === 'posted' || target.status === 'issued') {
         throw new Error('لا يمكن إلغاء إشعار مُرحّل مباشرة؛ يجب استخدام القيد العكسي.');
       }
@@ -2347,6 +2665,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } else if (type === 'voucher') {
       const target = vouchers.find((v) => v.id === id);
       if (!target) throw new Error('المستند غير موجود');
+      assertDateNotInClosedPeriod(target.date, target.type === 'receipt' ? 'سند قبض' : 'سند صرف');
       if (target.status === 'posted') {
         throw new Error('لا يمكن إلغاء سند مُرحّل مباشرة؛ يجب استخدام القيد العكسي.');
       }
@@ -2356,6 +2675,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } else if (type === 'simple_expense') {
       const target = simpleExpenses.find((e) => e.id === id);
       if (!target) throw new Error('المستند غير موجود');
+      assertDateNotInClosedPeriod(target.date, 'فاتورة مصروف');
       if (target.status === 'posted') {
         throw new Error('لا يمكن إلغاء مصروف مُرحّل مباشرة؛ يجب استخدام القيد العكسي.');
       }
@@ -2365,6 +2685,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } else if (type === 'journal_entry') {
       const target = journalEntries.find((j) => j.id === id);
       if (!target) throw new Error('القيد غير موجود');
+      assertDateNotInClosedPeriod(target.date, 'قيد محاسبي');
       if (target.status === 'posted') {
         throw new Error('لا يمكن إلغاء قيد مُرحّل مباشرة؛ يجب استخدام القيد العكسي.');
       }
@@ -2372,6 +2693,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         prev.map((j) => (j.id === id ? { ...j, status: 'cancelled', cancelledAt: nowIso, cancellationReason } : j))
       );
     }
+
+    logAuditEvent({
+      action: 'cancel',
+      entityType: type === 'simple_expense' ? 'simple_expense' : (type as any),
+      entityId: id,
+      reason: cancellationReason,
+      source: 'web_ui',
+      metadata: { documentType: type, documentId: id },
+    });
   };
 
   const reversePostedDocument = async (
@@ -2387,6 +2717,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const nowIso = new Date().toISOString();
     const [today] = nowIso.split('T');
     const revDate = reversalDate || today;
+    assertDateNotInClosedPeriod(revDate, 'قيد عكسي');
     const fiscalYear = getDocFiscalYear(revDate);
 
     const reversalJvId = generateEntityId('jv');
@@ -2772,6 +3103,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setJournalEntries(updatedJournal);
     setAccounts((prevAccs) => recalculateAccountBalances(updatedJournal, prevAccs));
+
+    logAuditEvent({
+      action: 'reverse',
+      entityType: type === 'simple_expense' ? 'simple_expense' : (type as any),
+      entityId: id,
+      after: reversalEntry as unknown as Record<string, unknown>,
+      reason: reversalReason,
+      source: 'web_ui',
+      metadata: {
+        documentType: type,
+        documentId: id,
+        reversalEntryId: reversalEntry.id,
+        reversalEntryNumber: reversalEntry.entryNumber,
+      },
+    });
 
     return reversalEntry;
   };
@@ -3189,7 +3535,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const updateCompanySettings = (settings: CompanySettings) => {
+    const prevSettings = companySettings;
     setCompanySettings(settings);
+
+    logAuditEvent({
+      action: 'settings_update',
+      entityType: 'settings',
+      entityId: 'company_settings',
+      before: prevSettings as unknown as Record<string, unknown>,
+      after: settings as unknown as Record<string, unknown>,
+      reason: 'تحديث بيانات وإعدادات المنشأة والضريبة',
+      source: 'web_ui',
+    });
   };
 
   // Branch Management
@@ -3418,6 +3775,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const nowIso = new Date().toISOString();
     const [issueDate, issueTimePart] = nowIso.split('T');
     const issueTime = issueTimePart ? issueTimePart.substring(0, 8) : '12:00:00';
+    assertDateNotInClosedPeriod(issueDate, 'فاتورة مبيعات نقاط البيع (POS)');
     const fiscalYear = getDocFiscalYear(issueDate);
 
     // Validate inventory stock availability
@@ -3715,6 +4073,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setActiveBranchId('br_1');
     setActiveRegisterId('reg_1');
     setStockMovements([]);
+
+    logAuditEvent({
+      action: 'reset',
+      entityType: 'backup',
+      entityId: 'database_reset',
+      reason: 'إعادة ضبط النظام الشامل إلى البيانات التجريبية الافتراضية',
+      source: 'system_reset',
+    });
   };
 
   const exportDataJson = (): string => {
@@ -3763,6 +4129,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setStockMovements(repo.loadStockMovements());
       setActiveBranchId(repo.loadActiveBranchId());
       setActiveRegisterId(repo.loadActiveRegisterId());
+
+      logAuditEvent({
+        action: 'import',
+        entityType: 'backup',
+        entityId: 'json_import',
+        reason: 'استيراد نسخة احتياطية من ملف JSON واستبدال البيانات',
+        source: 'import_file',
+      });
     }
     return success;
   };
@@ -3783,7 +4157,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let totalDebit = 0;
     let totalCredit = 0;
 
-    const sortedEntries = [...journalEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sortedEntries = [...journalEntries]
+      .filter(isReportEligibleJournalEntry)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     sortedEntries.forEach((entry) => {
       if (startDate && entry.date < startDate) return;
@@ -4211,6 +4587,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let exemptSales = 0;
 
     salesInvoices.forEach((inv) => {
+      // Strictly include posted/issued invoices only (exclude draft, cancelled, reversed)
+      if (inv.status !== 'posted' && inv.status !== 'issued') return;
       if (startDate && inv.issueDate < startDate) return;
       if (endDate && inv.issueDate > endDate) return;
 
@@ -4232,6 +4610,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let exemptPurchases = 0;
 
     purchaseInvoices.forEach((pur) => {
+      // Strictly include posted invoices only (exclude draft, cancelled, reversed)
+      if (pur.status !== 'posted') return;
       if (startDate && pur.issueDate < startDate) return;
       if (endDate && pur.issueDate > endDate) return;
 
@@ -4247,9 +4627,24 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
     });
 
+    // Simple Expenses that are posted
+    simpleExpenses.forEach((exp) => {
+      if (exp.status !== 'posted') return;
+      if (startDate && exp.date < startDate) return;
+      if (endDate && exp.date > endDate) return;
+
+      if (exp.vatAmount > 0) {
+        standardRatedPurchases += exp.amountBeforeVat;
+        standardRatedPurchasesVat += exp.vatAmount;
+      } else {
+        exemptPurchases += exp.amountBeforeVat;
+      }
+    });
+
     // Factor in Credit Notes and Debit Notes (ZATCA VAT adjustments)
     debitCreditNotes.forEach((note) => {
-      if (note.status === 'cancelled') return;
+      // Strictly include posted/issued notes only
+      if (note.status !== 'posted' && note.status !== 'issued') return;
       if (startDate && note.issueDate < startDate) return;
       if (endDate && note.issueDate > endDate) return;
 
@@ -4313,8 +4708,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         stockMovements,
         journalEntries,
         companySettings,
+        auditLogs,
         activeTab,
         setActiveTab,
+        logAuditEvent,
+        clearAuditLogs,
         createSalesInvoice,
         createPurchaseInvoice,
         createDebitCreditNote,

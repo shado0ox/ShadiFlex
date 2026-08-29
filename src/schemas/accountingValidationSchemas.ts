@@ -640,6 +640,27 @@ export const parkedOrderSchema = z.object({
 });
 
 /**
+ * Financial Period Schema
+ */
+export const financialPeriodSchema = z.object({
+  id: z.string().min(1, 'معرف الفترة المالية مطلوب'),
+  nameAr: z.string().min(1, 'اسم الفترة المالية بالعربية مطلوب'),
+  nameEn: z.string().min(1, 'اسم الفترة المالية بالإنجليزية مطلوب'),
+  year: z.number().int().min(2000, 'السنة المالية غير صالحة'),
+  periodNumber: z.number().int().min(1).max(12),
+  quarter: z.number().int().min(1).max(4),
+  startDate: dateStringSchema,
+  endDate: dateStringSchema,
+  status: z.enum(['open', 'closed']).default('open'),
+  closedAt: z.string().optional(),
+  closedBy: z.string().optional(),
+  reopenedAt: z.string().optional(),
+  reopenedBy: z.string().optional(),
+  reopenReason: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+/**
  * Complete Accounting Backup Snapshot Schema
  */
 export const accountingBackupDataSchema = z.object({
@@ -657,6 +678,7 @@ export const accountingBackupDataSchema = z.object({
   journalEntries: z.array(journalEntrySchema).default([]),
   apiKeys: z.array(apiKeySchema).default([]),
   fiscalClosings: z.array(fiscalYearClosingSchema).default([]),
+  financialPeriods: z.array(financialPeriodSchema).default([]),
   branches: z.array(branchSchema).default([]),
   cashRegisters: z.array(cashRegisterSchema).default([]),
   cashierShifts: z.array(cashierShiftSchema).default([]),

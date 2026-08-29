@@ -17,7 +17,7 @@ interface InvoiceFormModalProps {
 }
 
 export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { customers, inventory, salesInvoices, createSalesInvoice } = useAccounting();
+  const { customers, inventory, salesInvoices, createSalesInvoice, checkDateInFiscalYear, checkDateInFiscalPeriod } = useAccounting();
 
   // Generate default next invoice number
   const nextInvoiceNumber = `INV-2026-${(salesInvoices.length + 1).toString().padStart(4, '0')}`;
@@ -295,6 +295,38 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onCl
               />
             </div>
           </div>
+
+          {/* Fiscal Period & Year Warning Alert */}
+          {(() => {
+            const pCheck = checkDateInFiscalPeriod(issueDate);
+            const yCheck = checkDateInFiscalYear(issueDate);
+
+            if (pCheck.isClosed) {
+              return (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800 text-xs animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">تحذير رقابي حاسم: </span>
+                    الفترة المالية ({pCheck.period?.nameAr || issueDate}) مقفلة تماماً. يمنع النظام إصدار أو ترحيل الفواتير ضمن فترات مقفلة.
+                  </div>
+                </div>
+              );
+            }
+
+            if (!yCheck.isWithinYear) {
+              return (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-xs animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">تنبيه السنة المالية: </span>
+                    {yCheck.warningMessage}
+                  </div>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
 
           {/* Customer Selection & Details */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">

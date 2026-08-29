@@ -1,33 +1,82 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { AccountingProvider, useAccounting } from './context/AccountingContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
-import { SalesInvoices } from './components/Invoices/SalesInvoices';
-import { InvoiceFormModal } from './components/Invoices/InvoiceFormModal';
-import { InvoicePrintModal } from './components/Invoices/InvoicePrintModal';
-import { PurchaseInvoices, PurchaseFormModal } from './components/Purchases/PurchaseInvoices';
-import { DebitCreditNotesView } from './components/DebitCreditNotes/DebitCreditNotesView';
-import { VouchersManager } from './components/Vouchers/VouchersManager';
-import { InventoryManager } from './components/Inventory/InventoryManager';
-import { ChartOfAccountsView } from './components/Accounts/ChartOfAccountsView';
-import { JournalEntriesView, NewJournalEntryModal } from './components/JournalEntries/JournalEntriesView';
-import { FinancialReports } from './components/Reports/FinancialReports';
-import { PartiesManager } from './components/Parties/PartiesManager';
-import { SimpleExpensesManager } from './components/SimpleExpenses/SimpleExpensesManager';
-import { CompanySettingsManager } from './components/Settings/CompanySettingsManager';
-import { ZatcaPhase2Hub } from './components/ZatcaPhase2/ZatcaPhase2Hub';
-import { AiAdvisor } from './components/AiAdvisor';
-import { PosTerminal } from './components/POS/PosTerminal';
-import { BranchesAndRegistersManager } from './components/POS/BranchesAndRegistersManager';
 import { DesignerSignature } from './components/Signature/DesignerSignature';
 import { DemoBanner } from './components/DemoBanner';
+import { ErrorBoundary } from './components/Common/ErrorBoundary';
+import { LoadingFallback } from './components/Common/LoadingFallback';
 import { SalesInvoice } from './types/accounting';
+
+// Lazy Loaded Pages and Heavy Components
+const PosTerminal = lazy(() =>
+  import('./components/POS/PosTerminal').then((m) => ({ default: m.PosTerminal }))
+);
+const BranchesAndRegistersManager = lazy(() =>
+  import('./components/POS/BranchesAndRegistersManager').then((m) => ({ default: m.BranchesAndRegistersManager }))
+);
+const SalesInvoices = lazy(() =>
+  import('./components/Invoices/SalesInvoices').then((m) => ({ default: m.SalesInvoices }))
+);
+const PurchaseInvoices = lazy(() =>
+  import('./components/Purchases/PurchaseInvoices').then((m) => ({ default: m.PurchaseInvoices }))
+);
+const SimpleExpensesManager = lazy(() =>
+  import('./components/SimpleExpenses/SimpleExpensesManager').then((m) => ({ default: m.SimpleExpensesManager }))
+);
+const DebitCreditNotesView = lazy(() =>
+  import('./components/DebitCreditNotes/DebitCreditNotesView').then((m) => ({ default: m.DebitCreditNotesView }))
+);
+const VouchersManager = lazy(() =>
+  import('./components/Vouchers/VouchersManager').then((m) => ({ default: m.VouchersManager }))
+);
+const PartiesManager = lazy(() =>
+  import('./components/Parties/PartiesManager').then((m) => ({ default: m.PartiesManager }))
+);
+const InventoryManager = lazy(() =>
+  import('./components/Inventory/InventoryManager').then((m) => ({ default: m.InventoryManager }))
+);
+const ChartOfAccountsView = lazy(() =>
+  import('./components/Accounts/ChartOfAccountsView').then((m) => ({ default: m.ChartOfAccountsView }))
+);
+const JournalEntriesView = lazy(() =>
+  import('./components/JournalEntries/JournalEntriesView').then((m) => ({ default: m.JournalEntriesView }))
+);
+const FinancialReports = lazy(() =>
+  import('./components/Reports/FinancialReports').then((m) => ({ default: m.FinancialReports }))
+);
+const CompanySettingsManager = lazy(() =>
+  import('./components/Settings/CompanySettingsManager').then((m) => ({ default: m.CompanySettingsManager }))
+);
+const ZatcaPhase2Hub = lazy(() =>
+  import('./components/ZatcaPhase2/ZatcaPhase2Hub').then((m) => ({ default: m.ZatcaPhase2Hub }))
+);
+const AiAdvisor = lazy(() =>
+  import('./components/AiAdvisor').then((m) => ({ default: m.AiAdvisor }))
+);
+const AuditLogsView = lazy(() =>
+  import('./components/AuditLogs/AuditLogsView').then((m) => ({ default: m.AuditLogsView }))
+);
+
+// Lazy Loaded Modals
+const InvoiceFormModal = lazy(() =>
+  import('./components/Invoices/InvoiceFormModal').then((m) => ({ default: m.InvoiceFormModal }))
+);
+const InvoicePrintModal = lazy(() =>
+  import('./components/Invoices/InvoicePrintModal').then((m) => ({ default: m.InvoicePrintModal }))
+);
+const PurchaseFormModal = lazy(() =>
+  import('./components/Purchases/PurchaseInvoices').then((m) => ({ default: m.PurchaseFormModal }))
+);
+const NewJournalEntryModal = lazy(() =>
+  import('./components/JournalEntries/JournalEntriesView').then((m) => ({ default: m.NewJournalEntryModal }))
+);
 
 const MainLayout: React.FC = () => {
   const { activeTab, salesInvoices } = useAccounting();
-  const { direction, isRtl } = useLanguage();
+  const { direction } = useLanguage();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Modals state
@@ -64,116 +113,126 @@ const MainLayout: React.FC = () => {
           onOpenNewJournalEntry={() => setJournalModalOpen(true)}
         />
 
-        {/* Dynamic Page Views */}
-        {activeTab === 'pos_sales' ? (
-          <main className="flex-1 overflow-hidden bg-slate-100">
-            <PosTerminal />
-          </main>
-        ) : (
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-100">
-            <div className="max-w-7xl mx-auto space-y-6">
-              {activeTab === 'pos_management' && <BranchesAndRegistersManager />}
+        {/* Dynamic Page Views Wrapped in ErrorBoundary and Suspense */}
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback message="جاري تحميل الصفحة..." />}>
+            {activeTab === 'pos_sales' ? (
+              <main className="flex-1 overflow-hidden bg-slate-100">
+                <PosTerminal />
+              </main>
+            ) : (
+              <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-100">
+                <div className="max-w-7xl mx-auto space-y-6">
+                  {activeTab === 'pos_management' && <BranchesAndRegistersManager />}
 
-              {activeTab === 'dashboard' && (
-                <Dashboard
-                  onOpenNewSalesInvoice={() => setSalesModalOpen(true)}
-                  onOpenNewPurchaseInvoice={() => setPurchaseModalOpen(true)}
-                  onOpenNewJournalEntry={() => setJournalModalOpen(true)}
-                  onViewInvoicePrint={(inv) => setPrintInvoice(inv)}
-                />
-              )}
+                  {activeTab === 'dashboard' && (
+                    <Dashboard
+                      onOpenNewSalesInvoice={() => setSalesModalOpen(true)}
+                      onOpenNewPurchaseInvoice={() => setPurchaseModalOpen(true)}
+                      onOpenNewJournalEntry={() => setJournalModalOpen(true)}
+                      onViewInvoicePrint={(inv) => setPrintInvoice(inv)}
+                    />
+                  )}
 
-              {activeTab === 'sales' && (
-                <SalesInvoices
-                  onOpenNewInvoice={() => setSalesModalOpen(true)}
-                  onViewInvoicePrint={(inv) => setPrintInvoice(inv)}
-                />
-              )}
+                  {activeTab === 'sales' && (
+                    <SalesInvoices
+                      onOpenNewInvoice={() => setSalesModalOpen(true)}
+                      onViewInvoicePrint={(inv) => setPrintInvoice(inv)}
+                    />
+                  )}
 
-              {activeTab === 'purchases' && (
-                <PurchaseInvoices
-                  onOpenNewPurchase={() => setPurchaseModalOpen(true)}
-                />
-              )}
+                  {activeTab === 'purchases' && (
+                    <PurchaseInvoices
+                      onOpenNewPurchase={() => setPurchaseModalOpen(true)}
+                    />
+                  )}
 
-              {activeTab === 'expenses' && <SimpleExpensesManager />}
+                  {activeTab === 'expenses' && <SimpleExpensesManager />}
 
-              {activeTab === 'debit_credit_notes' && <DebitCreditNotesView />}
+                  {activeTab === 'debit_credit_notes' && <DebitCreditNotesView />}
 
-              {activeTab === 'vouchers' && <VouchersManager />}
+                  {activeTab === 'vouchers' && <VouchersManager />}
 
-              {activeTab === 'parties' && <PartiesManager />}
+                  {activeTab === 'parties' && <PartiesManager />}
 
-              {activeTab === 'inventory' && <InventoryManager />}
+                  {activeTab === 'inventory' && <InventoryManager />}
 
-              {activeTab === 'accounts' && <ChartOfAccountsView />}
+                  {activeTab === 'accounts' && <ChartOfAccountsView />}
 
-              {activeTab === 'journal' && (
-                <JournalEntriesView
-                  onOpenNewEntry={() => setJournalModalOpen(true)}
-                />
-              )}
+                  {activeTab === 'journal' && (
+                    <JournalEntriesView
+                      onOpenNewEntry={() => setJournalModalOpen(true)}
+                    />
+                  )}
 
-              {(activeTab === 'financial_statements' || activeTab === 'vat_return' || activeTab === 'reports') && (
-                <FinancialReports />
-              )}
+                  {(activeTab === 'financial_statements' || activeTab === 'vat_return' || activeTab === 'reports') && (
+                    <FinancialReports />
+                  )}
 
-              {activeTab === 'settings' && <CompanySettingsManager />}
+                  {activeTab === 'settings' && <CompanySettingsManager />}
 
-              {activeTab === 'zatca_phase2' && <ZatcaPhase2Hub />}
+                  {activeTab === 'zatca_phase2' && <ZatcaPhase2Hub />}
 
-              {activeTab === 'ai_advisor' && <AiAdvisor />}
+                  {activeTab === 'ai_advisor' && <AiAdvisor />}
 
-              {/* Ornate Signature Footer */}
-              <DesignerSignature variant="footer" />
-            </div>
-          </main>
-        )}
+                  {activeTab === 'audit_logs' && <AuditLogsView />}
+
+                  {/* Ornate Signature Footer */}
+                  <DesignerSignature variant="footer" />
+                </div>
+              </main>
+            )}
+          </Suspense>
+        </ErrorBoundary>
       </div>
 
-      {/* Modals */}
-      {salesModalOpen && (
-        <InvoiceFormModal
-          isOpen={salesModalOpen}
-          onClose={() => setSalesModalOpen(false)}
-          onSuccess={(invNumber) => {
-            handleOpenPrintByNumber(invNumber);
-          }}
-        />
-      )}
+      {/* Modals wrapped in Suspense */}
+      <Suspense fallback={null}>
+        {salesModalOpen && (
+          <InvoiceFormModal
+            isOpen={salesModalOpen}
+            onClose={() => setSalesModalOpen(false)}
+            onSuccess={(invNumber) => {
+              handleOpenPrintByNumber(invNumber);
+            }}
+          />
+        )}
 
-      {purchaseModalOpen && (
-        <PurchaseFormModal
-          isOpen={purchaseModalOpen}
-          onClose={() => setPurchaseModalOpen(false)}
-          onSuccess={() => {}}
-        />
-      )}
+        {purchaseModalOpen && (
+          <PurchaseFormModal
+            isOpen={purchaseModalOpen}
+            onClose={() => setPurchaseModalOpen(false)}
+            onSuccess={() => {}}
+          />
+        )}
 
-      {journalModalOpen && (
-        <NewJournalEntryModal
-          isOpen={journalModalOpen}
-          onClose={() => setJournalModalOpen(false)}
-          onSuccess={() => {}}
-        />
-      )}
+        {journalModalOpen && (
+          <NewJournalEntryModal
+            isOpen={journalModalOpen}
+            onClose={() => setJournalModalOpen(false)}
+            onSuccess={() => {}}
+          />
+        )}
 
-      {printInvoice && (
-        <InvoicePrintModal
-          invoice={printInvoice}
-          onClose={() => setPrintInvoice(null)}
-        />
-      )}
+        {printInvoice && (
+          <InvoicePrintModal
+            invoice={printInvoice}
+            onClose={() => setPrintInvoice(null)}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <AccountingProvider>
-        <MainLayout />
-      </AccountingProvider>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <AccountingProvider>
+          <MainLayout />
+        </AccountingProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }

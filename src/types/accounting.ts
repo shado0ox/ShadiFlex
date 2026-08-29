@@ -623,4 +623,80 @@ export interface ParkedOrder {
   savedAt: string;
 }
 
+// ----------------------------------------------------
+// Financial Period Types (الفترات المالية)
+// ----------------------------------------------------
+export interface FinancialPeriod {
+  id: string; // e.g. 'fp_2026_01'
+  nameAr: string; // 'يناير 2026'
+  nameEn: string; // 'January 2026'
+  year: number; // 2026
+  periodNumber: number; // 1 to 12
+  quarter: number; // 1 to 4
+  startDate: string; // '2026-01-01'
+  endDate: string; // '2026-01-31'
+  status: 'open' | 'closed';
+  closedAt?: string;
+  closedBy?: string;
+  reopenedAt?: string;
+  reopenedBy?: string;
+  reopenReason?: string;
+  notes?: string;
+}
+
+// ----------------------------------------------------
+// Local Temporary Audit Log Types (سجل التدقيق المحلي المؤقت)
+// ----------------------------------------------------
+export type AuditLogAction =
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'post'
+  | 'cancel'
+  | 'reverse'
+  | 'import'
+  | 'reset'
+  | 'settings_update'
+  | 'period_close'
+  | 'period_reopen'
+  | 'fiscal_year_close'
+  | 'fiscal_year_reopen'
+  | 'api_key_create'
+  | 'api_key_toggle';
+
+export type AuditLogEntityType =
+  | 'sales_invoice'
+  | 'purchase_invoice'
+  | 'journal_entry'
+  | 'voucher'
+  | 'debit_credit_note'
+  | 'simple_expense'
+  | 'company_settings'
+  | 'settings'
+  | 'fiscal_period'
+  | 'fiscal_year'
+  | 'account'
+  | 'customer'
+  | 'supplier'
+  | 'inventory_item'
+  | 'api_key'
+  | 'fiscal_closing'
+  | 'backup_restore'
+  | 'backup'
+  | 'system';
+
+export interface AuditLogEntry {
+  id: string;
+  action: AuditLogAction;
+  entityType: AuditLogEntityType;
+  entityId: string;
+  timestamp: string; // ISO 8601 string
+  user: string; // "Demo Local User" in local demo mode
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  reason?: string;
+  source: 'web_ui' | 'pos_terminal' | 'import_file' | 'system_reset' | 'api_simulation';
+  metadata?: Record<string, unknown>;
+}
+
 

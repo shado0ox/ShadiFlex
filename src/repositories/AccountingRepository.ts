@@ -13,6 +13,7 @@ import {
   SimpleExpenseInvoice,
   ApiKey,
   FiscalYearClosing,
+  FinancialPeriod,
   Branch,
   CashRegister,
   CashierShift,
@@ -34,6 +35,7 @@ export interface AccountingDataSnapshot {
   journalEntries: JournalEntry[];
   apiKeys: ApiKey[];
   fiscalClosings: FiscalYearClosing[];
+  financialPeriods?: FinancialPeriod[];
   branches: Branch[];
   cashRegisters: CashRegister[];
   cashierShifts: CashierShift[];
@@ -97,11 +99,13 @@ export interface IAccountingRepository {
   loadJournalEntries(): JournalEntry[];
   saveJournalEntries(entries: JournalEntry[]): void;
 
-  // API Keys & Fiscal Closings
+  // API Keys & Fiscal Closings & Financial Periods
   loadApiKeys(): ApiKey[];
   saveApiKeys(keys: ApiKey[]): void;
   loadFiscalClosings(): FiscalYearClosing[];
   saveFiscalClosings(closings: FiscalYearClosing[]): void;
+  loadFinancialPeriods(): FinancialPeriod[];
+  saveFinancialPeriods(periods: FinancialPeriod[]): void;
 
   // POS, Branches & Registers
   loadBranches(): Branch[];

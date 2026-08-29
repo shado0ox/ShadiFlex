@@ -23,6 +23,7 @@ import {
   Store,
   Computer,
   Layers,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -41,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     simpleExpenses,
     branches,
     parkedOrders,
+    auditLogs,
   } = useAccounting();
 
   const { t, language, isRtl } = useLanguage();
@@ -172,6 +174,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: t('nav.settings', 'إعدادات المنشأة وإقفال السنة و API'),
       icon: Settings,
       badge: null,
+    },
+    {
+      id: 'audit_logs',
+      label: language === 'ar' ? 'سجل التدقيق المحلي التجريبي' : 'Local Audit Log (Demo)',
+      icon: ShieldAlert,
+      badge: auditLogs.length > 0 ? `${auditLogs.length}` : null,
+      badgeColor: 'bg-slate-200 text-slate-700 border-slate-300 font-medium',
     },
   ];
 

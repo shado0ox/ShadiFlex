@@ -27,7 +27,15 @@ interface PurchaseFormModalProps {
 }
 
 export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { suppliers, inventory, purchaseInvoices, createPurchaseInvoice, companySettings } = useAccounting();
+  const {
+    suppliers,
+    inventory,
+    purchaseInvoices,
+    createPurchaseInvoice,
+    companySettings,
+    checkDateInFiscalYear,
+    checkDateInFiscalPeriod,
+  } = useAccounting();
 
   const fiscalYear = companySettings.fiscalYear || new Date().getFullYear();
   const nextPurchaseNumber = documentSequenceService.peekNextNumber(
@@ -266,6 +274,38 @@ export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, on
               />
             </div>
           </div>
+
+          {/* Fiscal Period & Year Warning Alert */}
+          {(() => {
+            const pCheck = checkDateInFiscalPeriod(issueDate);
+            const yCheck = checkDateInFiscalYear(issueDate);
+
+            if (pCheck.isClosed) {
+              return (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800 text-xs animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">تحذير رقابي حاسم: </span>
+                    الفترة المالية ({pCheck.period?.nameAr || issueDate}) مقفلة تماماً. يمنع النظام إنشاء أو ترحيل فواتير المشتريات ضمن فترات مقفلة.
+                  </div>
+                </div>
+              );
+            }
+
+            if (!yCheck.isWithinYear) {
+              return (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-xs animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">تنبيه السنة المالية: </span>
+                    {yCheck.warningMessage}
+                  </div>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
 
           {/* Supplier Info */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">

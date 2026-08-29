@@ -11,12 +11,16 @@ import {
   SimpleExpenseInvoice,
   ApiKey,
   FiscalYearClosing,
+  FinancialPeriod,
   Branch,
   CashRegister,
   CashierShift,
   ParkedOrder,
 } from '../types/accounting';
 import { generateZatcaTlvBase64 } from '../utils/zatca';
+import { generateDefaultFinancialPeriods } from '../utils/fiscalPeriodUtils';
+
+export const INITIAL_FINANCIAL_PERIODS: FinancialPeriod[] = generateDefaultFinancialPeriods(2026);
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   nameAr: 'شركة رواسي الأفق للتجارة والتقنية ذ.م.م',

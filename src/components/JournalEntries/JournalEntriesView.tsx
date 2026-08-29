@@ -29,7 +29,15 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { accounts, journalEntries, createManualJournalEntry, validateJournalEntry, companySettings } = useAccounting();
+  const {
+    accounts,
+    journalEntries,
+    createManualJournalEntry,
+    validateJournalEntry,
+    companySettings,
+    checkDateInFiscalYear,
+    checkDateInFiscalPeriod,
+  } = useAccounting();
 
   const fiscalYear = companySettings.fiscalYear || new Date().getFullYear();
   const nextEntryNumber = documentSequenceService.peekNextNumber(
@@ -259,6 +267,38 @@ export const NewJournalEntryModal: React.FC<NewJournalEntryModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Fiscal Period & Year Warning Alert */}
+          {(() => {
+            const pCheck = checkDateInFiscalPeriod(date);
+            const yCheck = checkDateInFiscalYear(date);
+
+            if (pCheck.isClosed) {
+              return (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800 text-xs animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">تحذير رقابي حاسم: </span>
+                    الفترة المالية ({pCheck.period?.nameAr || date}) مقفلة تماماً. يمنع النظام إنشاء أو ترحيل قيود اليومية ضمن فترات مقفلة.
+                  </div>
+                </div>
+              );
+            }
+
+            if (!yCheck.isWithinYear) {
+              return (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-xs animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">تنبيه السنة المالية: </span>
+                    {yCheck.warningMessage}
+                  </div>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
 
           {/* Lines Table */}
           <div className="space-y-3">

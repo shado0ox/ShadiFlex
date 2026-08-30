@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CashierShift, CashRegister, Branch, CompanySettings } from '../../types/accounting';
 import { Clock, DollarSign, AlertTriangle, CheckCircle, Printer, X, Shield, Lock, Calculator, ArrowDownRight } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 interface PosShiftModalProps {
   mode: 'start' | 'close' | 'view_z_report';
@@ -27,6 +28,7 @@ export const PosShiftModal: React.FC<PosShiftModalProps> = ({
   onCloseShift,
   onClose,
 }) => {
+  const { toast } = useToast();
   const [targetRegisterId, setTargetRegisterId] = useState<string>(activeRegisterId);
   const [cashierName, setCashierName] = useState<string>('سعود المحاسب');
   const [openingCash, setOpeningCash] = useState<number>(300);
@@ -43,10 +45,11 @@ export const PosShiftModal: React.FC<PosShiftModalProps> = ({
   const handleStartSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetRegisterId) {
-      alert('يرجى اختيار صندوق الكاشير للوردية!');
+      toast.warning('يرجى اختيار صندوق الكاشير للوردية!');
       return;
     }
     onStartShift(targetRegisterId, cashierName, openingCash);
+    toast.success('تم فتح وردية الكاشير بنجاح');
     onClose();
   };
 

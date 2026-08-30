@@ -15,16 +15,16 @@ export function validateSaleInventory(
   const errors: string[] = [];
 
   for (const item of items) {
-    if (!item.inventoryItemId) continue;
-    const inv = inventory.find((i) => i.id === item.inventoryItemId);
+    if (!item.itemId) continue;
+    const inv = inventory.find((i) => i.id === item.itemId);
     if (!inv) {
-      errors.push(`الصنف (${item.description}) غير موجود في سجل المستودع.`);
+      errors.push(`الصنف (${item.nameAr || item.nameEn || item.itemId}) غير موجود في سجل المستودع.`);
       continue;
     }
 
-    if (inv.quantity < item.quantity) {
+    if (inv.currentStock < item.quantity) {
       errors.push(
-        `الكمية المطلوبة للصنف (${inv.nameAr}) هي ${item.quantity} ولكن الرصيد المتوفر بالمستودع هو ${inv.quantity} فقط.`
+        `الكمية المطلوبة للصنف (${inv.nameAr}) هي ${item.quantity} ولكن الرصيد المتوفر بالمستودع هو ${inv.currentStock} فقط.`
       );
     }
   }
@@ -60,7 +60,7 @@ export function calculateWeightedAverageCost(
 export function processSaleInventoryDeduction(params: {
   items: InvoiceItem[];
   currentInventory: InventoryItem[];
-  referenceType: 'sale' | 'pos_sale' | 'debit_note' | 'adjustment';
+  referenceType: 'sale' | 'purchase' | 'adjustment_in' | 'adjustment_out' | 'initial' | 'sale_reversal' | 'purchase_reversal' | 'return_in' | 'return_out';
   referenceId: string;
   referenceNumber: string;
   notesAr: string;
@@ -85,40 +85,36 @@ export function processSaleInventoryDeduction(params: {
   let totalCogs = 0;
 
   for (const item of items) {
-    if (!item.inventoryItemId) continue;
-    const invIndex = updatedInventory.findIndex((i) => i.id === item.inventoryItemId);
+    if (!item.itemId) continue;
+    const invIndex = updatedInventory.findIndex((i) => i.id === item.itemId);
     if (invIndex === -1) continue;
 
     const currentItem = updatedInventory[invIndex];
-    const prevQty = currentItem.quantity;
+    const prevQty = currentItem.currentStock;
     const newQty = prevQty - item.quantity;
-    const unitCost = currentItem.costPrice || currentItem.unitPrice * 0.7;
+    const unitCost = currentItem.purchasePrice || currentItem.salePrice * 0.7;
     const itemCogs = Number((unitCost * item.quantity).toFixed(2));
     totalCogs += itemCogs;
 
     const movement: StockMovement = {
       id: `mov_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      inventoryItemId: currentItem.id,
-      itemCode: currentItem.code,
-      itemNameAr: currentItem.nameAr,
-      type: 'out',
+      itemId: currentItem.id,
+      itemName: currentItem.nameAr,
+      date: nowIso.split('T')[0] || new Date().toISOString().split('T')[0],
+      type: referenceType,
       quantity: item.quantity,
-      previousQuantity: prevQty,
-      newQuantity: newQty,
-      unitCost,
-      totalCost: itemCogs,
-      referenceType,
-      referenceId,
+      previousStock: prevQty,
+      newStock: newQty,
       referenceNumber,
-      notesAr,
-      createdAt: nowIso,
+      documentId: referenceId,
+      documentType: 'sales_invoice',
+      notes: notesAr,
     };
 
     createdMovements.push(movement);
     updatedInventory[invIndex] = {
       ...currentItem,
-      quantity: newQty,
-      updatedAt: nowIso,
+      currentStock: newQty,
     };
   }
 
@@ -134,7 +130,7 @@ export function processSaleInventoryDeduction(params: {
  */
 export function getLowStockAlerts(inventory: InventoryItem[]): InventoryItem[] {
   return inventory.filter(
-    (item) => item.minStockLevel && item.quantity <= item.minStockLevel
+    (item) => item.minStockAlert && item.currentStock <= item.minStockAlert
   );
 }
 
@@ -144,7 +140,7 @@ export function getLowStockAlerts(inventory: InventoryItem[]): InventoryItem[] {
 export function calculateTotalInventoryValue(inventory: InventoryItem[]): number {
   return Number(
     inventory
-      .reduce((sum, item) => sum + item.quantity * (item.costPrice || 0), 0)
+      .reduce((sum, item) => sum + item.currentStock * (item.purchasePrice || 0), 0)
       .toFixed(2)
   );
 }

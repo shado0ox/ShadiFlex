@@ -290,7 +290,7 @@ export const DebitCreditNoteModal: React.FC<DebitCreditNoteModalProps> = ({
         totalAmount: Number(totalAmount.toFixed(2)),
         affectInventory,
         refundMethod,
-        status: 'issued',
+        status: 'posted',
         notes: notes.trim() || undefined,
       });
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { DocumentType } from '../../types/accounting';
 import { RotateCcw, AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import { formatSAR } from '../../utils/currency';
+import { useToast } from '../../context/ToastContext';
 
 interface DocumentReversalModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export const DocumentReversalModal: React.FC<DocumentReversalModalProps> = ({
   onClose,
   onConfirm,
 }) => {
+  const { toast } = useToast();
   const [reason, setReason] = useState('');
   const [reversalDate, setReversalDate] = useState(new Date().toISOString().split('T')[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,13 +52,14 @@ export const DocumentReversalModal: React.FC<DocumentReversalModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reason.trim()) {
-      alert('يرجى كتابة سبب العكس المحاسبي للمستند');
+      toast.warning('يرجى كتابة سبب العكس المحاسبي للمستند');
       return;
     }
 
     setIsSubmitting(true);
     try {
       onConfirm(reason.trim(), reversalDate);
+      toast.success(`تم إنشاء القيد العكسي للمستند ${documentNumber} بنجاح`);
       onClose();
     } finally {
       setIsSubmitting(false);

@@ -7,6 +7,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAccounting } from '../../../context/AccountingContext';
+import { useToast } from '../../../context/ToastContext';
 import { formatSAR } from '../../../utils/tafqeet';
 
 export const FiscalYearClosingTab: React.FC = () => {
@@ -15,6 +16,7 @@ export const FiscalYearClosingTab: React.FC = () => {
     closeFiscalYear,
     reopenFiscalYear,
   } = useAccounting();
+  const { toast } = useToast();
 
   // Year-End Closing Modal / Form
   const [closingYear, setClosingYear] = useState<number>(2025);
@@ -37,12 +39,13 @@ export const FiscalYearClosingTab: React.FC = () => {
         closedByName,
         closingNotes
       );
+      toast.success(`تم إقفال السنة المالية ${closingYear} بنجاح برقم قيد ${record.journalEntryNumber}`);
       setClosingSuccessMsg(`تم إقفال السنة المالية ${closingYear} بنجاح برقم قيد ${record.journalEntryNumber}`);
       setIsClosingModalOpen(false);
       setTimeout(() => setClosingSuccessMsg(null), 5000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء إقفال السنة المالية';
-      alert(msg);
+      toast.error(msg);
     } finally {
       setClosingInProgress(false);
     }

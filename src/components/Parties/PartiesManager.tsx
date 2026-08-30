@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { useToast } from '../../context/ToastContext';
 import { Customer, Supplier, DependencyCheckResult } from '../../types/accounting';
 import { formatSAR } from '../../utils/currency';
 import { DependencyCheckModal } from '../Common/DependencyCheckModal';
+import { EmptyState } from '../Common/EmptyState';
 import {
   Users,
   Truck,
@@ -34,6 +36,7 @@ export const PartiesManager: React.FC = () => {
     toggleSupplierStatus,
     checkSupplierDependencies,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
 
   const [activeTab, setActiveTab] = useState<'customers' | 'suppliers'>('customers');
   const [searchTerm, setSearchTerm] = useState('');
@@ -93,7 +96,7 @@ export const PartiesManager: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleDeleteRequest = (item: Customer | Supplier, type: 'customer' | 'supplier') => {
+  const handleDeleteRequest = async (item: Customer | Supplier, type: 'customer' | 'supplier') => {
     const check = type === 'customer' 
       ? checkCustomerDependencies(item.id) 
       : checkSupplierDependencies(item.id);
@@ -110,18 +113,31 @@ export const PartiesManager: React.FC = () => {
       return;
     }
 
-    if (confirm(`هل أنت متأكد من حذف (${item.nameAr}) نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.`)) {
+    const typeLabel = type === 'customer' ? 'العميل' : 'المورد';
+    const ok = await confirmModal({
+      title: `حذف ${typeLabel}`,
+      message: `هل أنت متأكد من حذف (${item.nameAr}) نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.`,
+      severity: 'danger',
+      confirmLabel: `حذف ${typeLabel}`,
+    });
+
+    if (ok) {
       if (type === 'customer') {
         deleteCustomer(item.id);
+        toast.success(`تم حذف العميل "${item.nameAr}" بنجاح`);
       } else {
         deleteSupplier(item.id);
+        toast.success(`تم حذف المورد "${item.nameAr}" بنجاح`);
       }
     }
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nameAr.trim()) return;
+    if (!nameAr.trim()) {
+      toast.error('يرجى كتابة الاسم بالعربية');
+      return;
+    }
 
     if (activeTab === 'customers') {
       if (editingItem) {
@@ -136,9 +152,9 @@ export const PartiesManager: React.FC = () => {
             street,
             city,
             postalCode,
-            country: 'SA',
           },
         });
+        toast.success(`تم تحديث بيانات العميل "${nameAr}" بنجاح`);
       } else {
         addCustomer({
           nameAr,
@@ -151,9 +167,9 @@ export const PartiesManager: React.FC = () => {
             street,
             city,
             postalCode,
-            country: 'SA',
           },
         });
+        toast.success(`تمت إضافة العميل "${nameAr}" بنجاح`);
       }
     } else {
       if (editingItem) {
@@ -166,6 +182,7 @@ export const PartiesManager: React.FC = () => {
           email,
           city,
         });
+        toast.success(`تم تحديث بيانات المورد "${nameAr}" بنجاح`);
       } else {
         addSupplier({
           nameAr,
@@ -176,6 +193,7 @@ export const PartiesManager: React.FC = () => {
           email,
           city,
         });
+        toast.success(`تمت إضافة المورد "${nameAr}" بنجاح`);
       }
     }
     setModalOpen(false);
@@ -579,16 +597,15 @@ export const PartiesManager: React.FC = () => {
           }}
           title={`تعذر حذف ${depTarget.type === 'customer' ? 'العميل' : 'المورد'}: ${depTarget.name}`}
           entityName={depTarget.name}
-          entityType={depTarget.type === 'customer' ? 'العميل' : 'المورد'}
           checkResult={depCheckResult}
-          onToggleDeactivate={() => {
+          onDeactivate={() => {
             if (depTarget.type === 'customer') {
               toggleCustomerStatus(depTarget.id);
             } else {
               toggleSupplierStatus(depTarget.id);
             }
           }}
-          isCurrentlyActive={depTarget.isActive}
+          isActive={depTarget.isActive}
         />
       )}
     </div>

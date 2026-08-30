@@ -311,7 +311,7 @@ export const SimpleExpenseFormModal: React.FC<SimpleExpenseFormModalProps> = ({
         notes: notes.trim() || undefined,
         attachmentName,
         attachmentDataUrl,
-        status: 'paid',
+        status: 'posted',
       });
 
       if (onSuccess) {

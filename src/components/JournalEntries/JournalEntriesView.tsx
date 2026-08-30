@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { useToast } from '../../context/ToastContext';
 import { JournalEntryLine, JournalEntry, DocumentStatus } from '../../types/accounting';
 import { formatSAR } from '../../utils/currency';
 import { documentSequenceService } from '../../services/documentSequenceService';
 import { DocumentReversalModal } from '../Common/DocumentReversalModal';
+import { EmptyState } from '../Common/EmptyState';
 import {
   X,
   Plus,
@@ -443,6 +445,7 @@ export const JournalEntriesView: React.FC<{ onOpenNewEntry: () => void }> = ({ o
     reversePostedDocument,
     deleteJournalEntry,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -450,6 +453,32 @@ export const JournalEntriesView: React.FC<{ onOpenNewEntry: () => void }> = ({ o
   // Reversal Modal State
   const [reversalModalOpen, setReversalModalOpen] = useState(false);
   const [entryToReverse, setEntryToReverse] = useState<JournalEntry | null>(null);
+
+  const handlePostEntry = async (entry: JournalEntry) => {
+    const ok = await confirmModal({
+      title: 'ترحيل القيد للأستاذ العام',
+      message: `هل أنت متأكد من ترحيل القيد ${entry.entryNumber}؟ سيتم تثبيت الأرصدة وتحديث كشوف الحسابات.`,
+      severity: 'warning',
+      confirmLabel: 'تأكيد الترحيل',
+    });
+    if (ok) {
+      postDocument('journal_entry', entry.id);
+      toast.success(`تم ترحيل القيد ${entry.entryNumber} بنجاح`);
+    }
+  };
+
+  const handleDeleteEntry = async (entry: JournalEntry) => {
+    const ok = await confirmModal({
+      title: 'حذف مسودة القيد',
+      message: `هل أنت متأكد من حذف مسودة القيد ${entry.entryNumber}؟`,
+      severity: 'danger',
+      confirmLabel: 'حذف المسودة',
+    });
+    if (ok) {
+      deleteJournalEntry(entry.id);
+      toast.success(`تم حذف مسودة القيد ${entry.entryNumber} بنجاح`);
+    }
+  };
 
   const filtered = journalEntries.filter((entry) => {
     const matchesSearch =
@@ -594,7 +623,7 @@ export const JournalEntriesView: React.FC<{ onOpenNewEntry: () => void }> = ({ o
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              postDocument('journal_entry', entry.id);
+                              handlePostEntry(entry);
                             }}
                             className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-600 text-purple-700 hover:text-white transition font-bold text-[11px] border border-purple-200"
                             title="ترحيل القيد للأستاذ العام"
@@ -603,10 +632,18 @@ export const JournalEntriesView: React.FC<{ onOpenNewEntry: () => void }> = ({ o
                             <span>ترحيل</span>
                           </button>
                           <button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              const reason = prompt('سبب إلغاء مسودة القيد:') || 'إلغاء مسودة';
-                              cancelDraftDocument('journal_entry', entry.id, reason);
+                              const ok = await confirmModal({
+                                title: 'إلغاء مسودة القيد',
+                                message: `هل أنت متأكد من إلغاء مسودة القيد ${entry.entryNumber}؟`,
+                                severity: 'warning',
+                                confirmLabel: 'تأكيد الإلغاء',
+                              });
+                              if (ok) {
+                                cancelDraftDocument('journal_entry', entry.id, 'إلغاء مسودة');
+                                toast.info(`تم إلغاء مسودة القيد ${entry.entryNumber}`);
+                              }
                             }}
                             className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                             title="إلغاء المسودة"
@@ -616,9 +653,7 @@ export const JournalEntriesView: React.FC<{ onOpenNewEntry: () => void }> = ({ o
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm(`هل أنت متأكد من حذف مسودة القيد ${entry.entryNumber}؟`)) {
-                                deleteJournalEntry(entry.id);
-                              }
+                              handleDeleteEntry(entry);
                             }}
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                             title="حذف المسودة"

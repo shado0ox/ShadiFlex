@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { useToast } from '../../context/ToastContext';
 import { SalesInvoice, PaymentMethod } from '../../types/accounting';
 import { formatSAR } from '../../utils/currency';
 import { DocumentReversalModal } from '../Common/DocumentReversalModal';
+import { EmptyState } from '../Common/EmptyState';
 import {
   FileText,
   Search,
@@ -39,6 +41,7 @@ export const SalesInvoices: React.FC<SalesInvoicesProps> = ({
     reversePostedDocument,
     deleteSalesInvoice,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'tax_invoice' | 'simplified_tax_invoice'>('all');
@@ -77,9 +80,40 @@ export const SalesInvoices: React.FC<SalesInvoicesProps> = ({
   const handleConfirmPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedInvoice) return;
+    if (payAmount <= 0) {
+      toast.warning('يرجى إدخال مبلغ سداد صحيح');
+      return;
+    }
     recordInvoicePayment(selectedInvoice.id, payAmount, payMethod);
+    toast.success(`تم تسجيل تحصيل مبلغ ${formatSAR(payAmount)} للفاتورة ${selectedInvoice.invoiceNumber} بنجاح`);
     setPaymentModalOpen(false);
     setSelectedInvoice(null);
+  };
+
+  const handlePostInvoice = async (inv: SalesInvoice) => {
+    const ok = await confirmModal({
+      title: 'ترحيل الفاتورة وتوليد القيد',
+      message: `هل أنت متأكد من ترحيل فاتورة المبيعات ${inv.invoiceNumber}؟ سيتم إنشاء وتثبيت القيد المحاسبي وتحديث المخزون وحساب العميل تلقائياً.`,
+      severity: 'warning',
+      confirmLabel: 'تأكيد الترحيل',
+    });
+    if (ok) {
+      postDocument('sales_invoice', inv.id);
+      toast.success(`تم ترحيل الفاتورة ${inv.invoiceNumber} وتوليد القيود المحاسبية بنجاح`);
+    }
+  };
+
+  const handleDeleteInvoice = async (inv: SalesInvoice) => {
+    const ok = await confirmModal({
+      title: 'حذف مسودة الفاتورة',
+      message: `هل أنت متأكد من حذف مسودة الفاتورة ${inv.invoiceNumber}؟`,
+      severity: 'danger',
+      confirmLabel: 'حذف المسودة',
+    });
+    if (ok) {
+      deleteSalesInvoice(inv.id);
+      toast.success(`تم حذف المسودة ${inv.invoiceNumber} بنجاح`);
+    }
   };
 
   return (
@@ -264,7 +298,7 @@ export const SalesInvoices: React.FC<SalesInvoicesProps> = ({
                           {status === 'draft' && (
                             <>
                               <button
-                                onClick={() => postDocument('sales_invoice', inv.id)}
+                                onClick={() => handlePostInvoice(inv)}
                                 className="flex items-center gap-1 p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white transition font-bold text-[11px] border border-emerald-200"
                                 title="ترحيل الفاتورة وتوليد القيد المحاسبي"
                               >
@@ -272,9 +306,17 @@ export const SalesInvoices: React.FC<SalesInvoicesProps> = ({
                                 <span>ترحيل</span>
                               </button>
                               <button
-                                onClick={() => {
-                                  const reason = prompt('سبب إلغاء مسودة الفاتورة:') || 'إلغاء مسودة';
-                                  cancelDraftDocument('sales_invoice', inv.id, reason);
+                                onClick={async () => {
+                                  const ok = await confirmModal({
+                                    title: 'إلغاء مسودة الفاتورة',
+                                    message: `هل أنت متأكد من إلغاء مسودة الفاتورة ${inv.invoiceNumber}؟`,
+                                    severity: 'warning',
+                                    confirmLabel: 'تأكيد الإلغاء',
+                                  });
+                                  if (ok) {
+                                    cancelDraftDocument('sales_invoice', inv.id, 'إلغاء مسودة');
+                                    toast.info(`تم إلغاء مسودة الفاتورة ${inv.invoiceNumber}`);
+                                  }
                                 }}
                                 className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                                 title="إلغاء المسودة"
@@ -282,11 +324,7 @@ export const SalesInvoices: React.FC<SalesInvoicesProps> = ({
                                 <XCircle className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm(`هل أنت متأكد من حذف مسودة الفاتورة ${inv.invoiceNumber}؟`)) {
-                                    deleteSalesInvoice(inv.id);
-                                  }
-                                }}
+                                onClick={() => handleDeleteInvoice(inv)}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                 title="حذف المسودة"
                               >

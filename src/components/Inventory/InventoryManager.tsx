@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { useToast } from '../../context/ToastContext';
 import { InventoryItem, DependencyCheckResult } from '../../types/accounting';
 import { formatSAR } from '../../utils/currency';
 import { DependencyCheckModal } from '../Common/DependencyCheckModal';
+import { EmptyState } from '../Common/EmptyState';
 import {
   Package,
   Plus,
@@ -31,6 +33,7 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
     adjustInventoryStock,
     checkDirectStockEditAllowed,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
 
   const [activeTab, setActiveTab] = useState<'items' | 'movements'>('items');
   const [searchTerm, setSearchTerm] = useState('');
@@ -115,7 +118,7 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
     setItemModalOpen(true);
   };
 
-  const handleDeleteItem = (item: InventoryItem) => {
+  const handleDeleteItem = async (item: InventoryItem) => {
     const check = checkInventoryItemDependencies(item.id);
     if (!check.canDelete) {
       setDepTargetItem(item);
@@ -124,14 +127,25 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
       return;
     }
 
-    if (confirm(`هل أنت متأكد من حذف الصنف (${item.nameAr}) نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.`)) {
+    const ok = await confirmModal({
+      title: 'حذف صنف من المخزون',
+      message: `هل أنت متأكد من حذف الصنف (${item.nameAr}) نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.`,
+      severity: 'danger',
+      confirmLabel: 'حذف الصنف',
+    });
+
+    if (ok) {
       deleteInventoryItem(item.id);
+      toast.success(`تم حذف الصنف "${item.nameAr}" بنجاح`);
     }
   };
 
   const handleSaveItem = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nameAr.trim()) return;
+    if (!nameAr.trim()) {
+      toast.error('يرجى إدخال اسم الصنف بالعربية');
+      return;
+    }
 
     try {
       if (editingItem) {
@@ -147,6 +161,7 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
           currentStock,
           minStockAlert,
         });
+        toast.success(`تم تحديث بيانات الصنف "${nameAr}" بنجاح`);
       } else {
         addInventoryItem({
           sku,
@@ -161,11 +176,12 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
           minStockAlert,
           vatRate: 0.15,
         });
+        toast.success(`تمت إضافة الصنف "${nameAr}" إلى المستودع بنجاح`);
       }
       setItemModalOpen(false);
     } catch (err: any) {
       console.error(err);
-      alert(err?.message || 'حدث خطأ أثناء حفظ الصنف');
+      toast.error(err?.message || 'حدث خطأ أثناء حفظ الصنف');
     }
   };
 
@@ -181,10 +197,11 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
     if (!adjustTargetItem) return;
     try {
       adjustInventoryStock(adjustTargetItem.id, newStockVal, adjustReason);
+      toast.success(`تم تعديل رصيد المخزون للصنف "${adjustTargetItem.nameAr}" إلى ${newStockVal} ${adjustTargetItem.unit}`);
       setAdjustModalOpen(false);
     } catch (err: any) {
       console.error(err);
-      alert(err?.message || 'حدث خطأ أثناء تسوية المخزون');
+      toast.error(err?.message || 'حدث خطأ أثناء تسوية المخزون');
     }
   };
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PaymentMethod, Customer, Branch, CashRegister } from '../../types/accounting';
 import { CreditCard, Banknote, Split, Wallet, Check, X, Calculator, ShieldCheck, ArrowRight, UserCheck } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 interface PosPaymentModalProps {
   totalAmount: number;
@@ -40,6 +41,7 @@ export const PosPaymentModal: React.FC<PosPaymentModalProps> = ({
   onConfirmPayment,
   onClose,
 }) => {
+  const { toast } = useToast();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('cash');
   const [cashTenderedInput, setCashTenderedInput] = useState<string>(totalAmount.toFixed(2));
   const [madaAuthCode, setMadaAuthCode] = useState<string>('');
@@ -66,7 +68,7 @@ export const PosPaymentModal: React.FC<PosPaymentModalProps> = ({
 
     if (selectedMethod === 'cash') {
       if (cashTendered < totalAmount) {
-        alert('المبلغ النقدي المدفوع أقل من إجمالي الفاتورة المطلوبة!');
+        toast.error('المبلغ النقدي المدفوع أقل من إجمالي الفاتورة المطلوبة!');
         return;
       }
       onConfirmPayment({
@@ -83,15 +85,15 @@ export const PosPaymentModal: React.FC<PosPaymentModalProps> = ({
         madaAuthCode: madaAuthCode.trim() || `AUTH-${Math.floor(100000 + Math.random() * 900000)}`,
         notes,
       });
-    } else if (selectedMethod === 'credit_card') {
+    } else if (selectedMethod === 'pos_card') {
       onConfirmPayment({
-        paymentMethod: 'credit_card',
+        paymentMethod: 'pos_card',
         paidAmount: totalAmount,
         notes,
       });
     } else if (selectedMethod === 'credit') {
       if (!selectedCustomer || selectedCustomer.id === 'cust_walkin') {
-        alert('يرجى تحديد عميل مسجل لإتمام عملية البيع الآجل!');
+        toast.warning('يرجى تحديد عميل مسجل لإتمام عملية البيع الآجل!');
         return;
       }
       onConfirmPayment({
@@ -206,7 +208,7 @@ export const PosPaymentModal: React.FC<PosPaymentModalProps> = ({
                 type="button"
                 onClick={() => setSelectedMethod('mada')}
                 className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition cursor-pointer ${
-                  selectedMethod === 'mada' || selectedMethod === 'pos_card'
+                  selectedMethod === 'mada'
                     ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20 font-bold shadow-xs'
                     : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                 }`}
@@ -217,9 +219,9 @@ export const PosPaymentModal: React.FC<PosPaymentModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setSelectedMethod('credit_card')}
+                onClick={() => setSelectedMethod('pos_card')}
                 className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition cursor-pointer ${
-                  selectedMethod === 'credit_card'
+                  selectedMethod === 'pos_card'
                     ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20 font-bold shadow-xs'
                     : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                 }`}

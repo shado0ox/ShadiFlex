@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useToast } from '../../context/ToastContext';
 import { InventoryItem, Customer, SalesInvoice, Branch, CashRegister } from '../../types/accounting';
+import { EmptyState } from '../Common/EmptyState';
 import { PosPaymentModal } from './PosPaymentModal';
 import { PosReceiptModal } from './PosReceiptModal';
 import { PosShiftModal } from './PosShiftModal';
@@ -68,6 +70,7 @@ export const PosTerminal: React.FC = () => {
     companySettings,
     setActiveTab,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
 
   // Local cart state
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -117,14 +120,14 @@ export const PosTerminal: React.FC = () => {
   // Add Item to Cart (or increment if already in cart)
   const handleAddToCart = (product: InventoryItem) => {
     if (product.currentStock <= 0) {
-      alert(`عفواً، الصنف "${product.nameAr}" غير متوفر حالياً في المخزون (الرصيد: 0).`);
+      toast.warning(`عفواً، الصنف "${product.nameAr}" غير متوفر حالياً في المخزون (الرصيد: 0).`);
       return;
     }
 
     const existing = cart.find((i) => i.itemId === product.id);
     if (existing && existing.quantity + 1 > product.currentStock) {
-      alert(
-        `لا يمكن إضافة المزيد من الصنف "${product.nameAr}".\nالكمية المطلوبة (${existing.quantity + 1}) تتجاوز الرصيد المتاح (${product.currentStock}).`
+      toast.warning(
+        `لا يمكن إضافة المزيد من "${product.nameAr}". الكمية المطلوبة (${existing.quantity + 1}) تتجاوز الرصيد المتاح (${product.currentStock}).`
       );
       return;
     }
@@ -160,8 +163,8 @@ export const PosTerminal: React.FC = () => {
 
     const prod = inventory.find((p) => p.id === itemId);
     if (prod && newQty > prod.currentStock) {
-      alert(
-        `لا يمكن طلب كمية (${newQty}) من الصنف "${prod.nameAr}".\nالرصيد المتاح حالياً هو (${prod.currentStock}) فقط.`
+      toast.warning(
+        `لا يمكن طلب كمية (${newQty}) من "${prod.nameAr}". الرصيد المتاح حالياً هو (${prod.currentStock}) فقط.`
       );
       return;
     }
@@ -181,11 +184,18 @@ export const PosTerminal: React.FC = () => {
     setCart((prev) => prev.filter((i) => i.itemId !== itemId));
   };
 
-  const handleClearCart = () => {
+  const handleClearCart = async () => {
     if (cart.length > 0) {
-      if (confirm('هل أنت متأكد من تفريغ عناصر السلة الحالية؟')) {
+      const ok = await confirmModal({
+        title: 'تفريغ السلة',
+        message: 'هل أنت متأكد من تفريغ عناصر السلة الحالية؟',
+        severity: 'warning',
+        confirmLabel: 'تفريغ السلة',
+      });
+      if (ok) {
         setCart([]);
         setCartDiscount(0);
+        toast.info('تم تفريغ السلة');
       }
     }
   };
@@ -204,7 +214,7 @@ export const PosTerminal: React.FC = () => {
   // Hold / Park Cart
   const handleParkCurrentCart = () => {
     if (cart.length === 0) {
-      alert('السلة فارغة! لا يمكن تعليق سلة بدون أصناف.');
+      toast.warning('السلة فارغة! لا يمكن تعليق سلة بدون أصناف.');
       return;
     }
 
@@ -212,13 +222,14 @@ export const PosTerminal: React.FC = () => {
       const lineSubtotal = Math.max(0, i.unitPrice * i.quantity - i.discount);
       const lineVat = lineSubtotal * 0.15;
       return {
+        id: `pos_item_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         itemId: i.itemId,
         nameAr: i.nameAr,
         quantity: i.quantity,
         unit: i.unit,
         unitPrice: i.unitPrice,
         discount: i.discount,
-        vatRate: 15,
+        vatRate: 0.15,
         vatAmount: lineVat,
         subtotal: lineSubtotal,
         totalWithVat: lineSubtotal + lineVat,
@@ -233,12 +244,12 @@ export const PosTerminal: React.FC = () => {
       customerName: selectedCustomer?.nameAr,
       items: itemsForPark,
       totalAmount: totalWithVat,
-      note: 'معلق من شاشة الكاشير',
+      notes: 'معلق من شاشة الكاشير',
     });
 
     setCart([]);
     setCartDiscount(0);
-    alert('تم تعليق وحفظ السلة بنجاح!');
+    toast.success('تم تعليق وحفظ السلة بنجاح!');
   };
 
   // Resume Parked Order
@@ -262,13 +273,14 @@ export const PosTerminal: React.FC = () => {
       if (resumed.customerId) {
         setSelectedCustomerId(resumed.customerId);
       }
+      toast.info('تم استرجاع السلة المعلقة بنجاح');
     }
   };
 
   // Process POS Sale Completion
   const handleConfirmPayment = async (paymentDetails: any) => {
     if (!activeShift) {
-      alert('تنبيه: يجب فتح وردية كاشير أولاً قبل إتمام عمليات البيع!');
+      toast.error('تنبيه: يجب فتح وردية كاشير أولاً قبل إتمام عمليات البيع!');
       setShiftModalMode('start');
       setShowShiftModal(true);
       return;
@@ -314,9 +326,10 @@ export const PosTerminal: React.FC = () => {
 
       // Open receipt modal
       setLastIssuedInvoice(invoice);
+      toast.success(`تم إصدار فاتورة نقطة البيع رقم ${invoice.invoiceNumber} بنجاح!`);
     } catch (error: any) {
       console.error('POS Checkout error:', error);
-      alert(error?.message || 'حدث خطأ أثناء معالجة عملية البيع.');
+      toast.error(error?.message || 'حدث خطأ أثناء معالجة عملية البيع.');
     }
   };
 

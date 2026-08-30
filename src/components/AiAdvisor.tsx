@@ -134,13 +134,13 @@ export const AiAdvisor: React.FC = () => {
       payload.totalAssets = balance.totalAssets;
       payload.totalLiabilities = balance.totalLiabilities;
       payload.totalEquity = balance.totalEquity;
-      payload.cashAndBankBalance = balance.cashAndBank;
+      payload.cashAndBankBalance = balance.currentAssets;
     }
 
     if (consentOptions.shareVat) {
       payload.outputVat = vat.standardRatedSalesVat;
       payload.inputVat = vat.standardRatedPurchasesVat;
-      payload.netVatDue = vat.netVatDue;
+      payload.netVatDue = vat.netVatPayableOrRefundable;
     }
 
     if (consentOptions.shareActivityCounts) {
@@ -328,7 +328,7 @@ export const AiAdvisor: React.FC = () => {
           </div>
           <div className="border-r border-slate-200 pr-4">
             <span className="text-slate-500 block text-[10px]">الضريبة المستحقة (ZATCA)</span>
-            <span className="font-mono font-bold text-purple-700">{formatSAR(vat.netVatDue)}</span>
+            <span className="font-mono font-bold text-purple-700">{formatSAR(vat.netVatPayableOrRefundable)}</span>
           </div>
         </div>
       </div>

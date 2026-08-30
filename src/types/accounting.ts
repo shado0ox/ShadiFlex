@@ -109,6 +109,8 @@ export interface SalesInvoice {
   remainingAmount: number;
   notes?: string;
   zatcaQrBase64?: string;
+  invoiceHash?: string;
+  hash?: string;
   journalEntryId?: string;
   status: DocumentStatus;
   postedAt?: string;

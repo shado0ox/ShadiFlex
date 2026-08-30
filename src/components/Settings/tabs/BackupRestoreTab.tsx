@@ -32,9 +32,10 @@ export const BackupRestoreTab: React.FC = () => {
     journalEntries,
     salesInvoices,
     purchaseInvoices,
-    exportFullBackupData,
-    restoreBackupData,
+    exportDataJson,
+    importDataJson,
     resetToDemoData,
+    restoreEmergencyBackup,
   } = useAccounting();
 
   // Status & Validation State
@@ -65,7 +66,8 @@ export const BackupRestoreTab: React.FC = () => {
   // Handle Download Backup
   const handleDownloadBackup = () => {
     try {
-      const backupData = exportFullBackupData();
+      const backupJson = exportDataJson();
+      const backupData = JSON.parse(backupJson);
       const filename = `accounting_backup_${companySettings.crNumber || 'sa'}_${new Date().toISOString().split('T')[0]}.json`;
       downloadBackupAsJson(backupData, filename);
       setImportStatus({
@@ -102,6 +104,7 @@ export const BackupRestoreTab: React.FC = () => {
                 id: 'json-syntax-err',
                 section: 'الملف العام (File Format)',
                 path: 'root',
+                severity: 'error',
                 message: 'الملف المرفوع ليس بصيغة JSON صالحة أو يحتوي على أخطاء بنية برمجية.',
               },
             ],
@@ -148,7 +151,8 @@ export const BackupRestoreTab: React.FC = () => {
 
     try {
       // 1. Create and Save Emergency Pre-Import Snapshot
-      const currentBackup = exportFullBackupData();
+      const currentBackupJson = exportDataJson();
+      const currentBackup = JSON.parse(currentBackupJson);
       const emergencySnapshot: EmergencyBackupState = {
         timestamp: new Date().toISOString(),
         data: currentBackup,
@@ -157,7 +161,7 @@ export const BackupRestoreTab: React.FC = () => {
       setEmergencyBackup(emergencySnapshot);
 
       // 2. Perform Safe Restore
-      restoreBackupData(pendingImportData);
+      importDataJson(JSON.stringify(pendingImportData));
 
       setIsConfirmImportModalOpen(false);
       setPendingImportData(null);
@@ -180,7 +184,7 @@ export const BackupRestoreTab: React.FC = () => {
   const handleRollbackEmergencyBackup = () => {
     if (!emergencyBackup) return;
     try {
-      restoreBackupData(emergencyBackup.data);
+      importDataJson(JSON.stringify(emergencyBackup.data));
       setIsEmergencyRollbackModalOpen(false);
       setImportStatus({
         success: true,

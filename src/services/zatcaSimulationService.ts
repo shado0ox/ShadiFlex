@@ -100,7 +100,7 @@ export function generateSimulatedUblXml(
   invoice: SalesInvoice,
   companySettings: CompanySettings
 ): string {
-  const isSimplified = invoice.invoiceType === 'simplified';
+  const isSimplified = invoice.type === 'simplified_tax_invoice';
   const profileId = isSimplified
     ? 'reporting:1.0'
     : 'clearance:1.0';
@@ -111,7 +111,7 @@ export function generateSimulatedUblXml(
          xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
     <cbc:ProfileID>${profileId}</cbc:ProfileID>
     <cbc:ID>${invoice.invoiceNumber}</cbc:ID>
-    <cbc:UUID>${invoice.id || 'uuid-zatca-simulated'}</cbc:UUID>
+    <cbc:UUID>${invoice.id || invoice.uuid || 'uuid-zatca-simulated'}</cbc:UUID>
     <cbc:IssueDate>${invoice.issueDate}</cbc:IssueDate>
     <cbc:IssueTime>${invoice.issueTime || '12:00:00'}</cbc:IssueTime>
     <cbc:InvoiceTypeCode name="0100000">${isSimplified ? '388' : '388'}</cbc:InvoiceTypeCode>
@@ -119,7 +119,7 @@ export function generateSimulatedUblXml(
     <cac:AccountingSupplierParty>
         <cac:Party>
             <cac:PartyIdentification>
-                <cbc:ID schemeID="CRN">${companySettings.commercialRegister || '1010000000'}</cbc:ID>
+                <cbc:ID schemeID="CRN">${companySettings.crNumber || '1010000000'}</cbc:ID>
             </cac:PartyIdentification>
             <cac:PartyTaxScheme>
                 <cbc:CompanyID>${companySettings.vatNumber || '300000000000003'}</cbc:CompanyID>

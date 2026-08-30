@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CashierShift } from '../../types/accounting';
 import { ArrowDownRight, X, DollarSign, CheckCircle } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 interface PosCashDropModalProps {
   activeShift: CashierShift;
@@ -13,21 +14,29 @@ export const PosCashDropModal: React.FC<PosCashDropModalProps> = ({
   onCashDrop,
   onClose,
 }) => {
+  const { toast, confirmModal } = useToast();
   const [amount, setAmount] = useState<number>(500);
   const [notes, setNotes] = useState<string>('توريد وسحب نقدية للخزينة الرئيسية');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (amount <= 0) {
-      alert('يرجى إدخال مبلغ صحيح للتوريد!');
+      toast.error('يرجى إدخال مبلغ صحيح للتوريد!');
       return;
     }
     if (amount > activeShift.expectedCash) {
-      if (!confirm('المبلغ المدخل أكبر من الرصيد النقدي المتوقع بالدرج! هل ترغب في المتابعة؟')) {
+      const ok = await confirmModal({
+        title: 'تنبيه تجاوز رصيد الدرج',
+        message: 'المبلغ المدخل أكبر من الرصيد النقدي المتوقع بالدرج! هل ترغب في المتابعة والتوريد؟',
+        severity: 'warning',
+        confirmLabel: 'متابعة التوريد',
+      });
+      if (!ok) {
         return;
       }
     }
     onCashDrop(activeShift.id, amount, notes);
+    toast.success(`تم توريد مبلغ ${amount.toFixed(2)} ر.س من الدرج بنجاح`);
     onClose();
   };
 

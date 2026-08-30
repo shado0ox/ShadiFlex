@@ -118,7 +118,7 @@ export const VoucherFormModal: React.FC<VoucherFormModalProps> = ({
         const suppAcc = accounts.find((a) => a.code === '2101');
         if (suppAcc) setDebitAccountId(suppAcc.id);
       } else {
-        const expAcc = accounts.find((a) => a.code === '5101' || a.category === 'expense') || accounts[0];
+        const expAcc = accounts.find((a) => a.code === '5101' || a.type === 'expense') || accounts[0];
         if (expAcc) setDebitAccountId(expAcc.id);
       }
     }

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { useToast } from '../../context/ToastContext';
 import { Account, AccountType, AccountNature, DependencyCheckResult } from '../../types/accounting';
 import { formatSAR } from '../../utils/currency';
 import { AccountStatementModal } from './AccountStatementModal';
 import { DependencyCheckModal } from '../Common/DependencyCheckModal';
+import { EmptyState } from '../Common/EmptyState';
 import {
   FolderTree,
   Plus,
@@ -29,6 +31,7 @@ export const ChartOfAccountsView: React.FC = () => {
     toggleAccountStatus,
     checkAccountDependencies,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | AccountType>('all');
@@ -103,7 +106,7 @@ export const ChartOfAccountsView: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleDeleteAccount = (acc: Account) => {
+  const handleDeleteAccount = async (acc: Account) => {
     const check = checkAccountDependencies(acc.id);
     if (!check.canDelete) {
       setDepTargetAccount(acc);
@@ -112,14 +115,25 @@ export const ChartOfAccountsView: React.FC = () => {
       return;
     }
 
-    if (confirm(`هل أنت متأكد من حذف الحساب (${acc.code} - ${acc.nameAr}) نهائياً؟`)) {
+    const ok = await confirmModal({
+      title: 'حذف الحساب المالي',
+      message: `هل أنت متأكد من حذف الحساب (${acc.code} - ${acc.nameAr}) نهائياً؟`,
+      severity: 'danger',
+      confirmLabel: 'حذف الحساب',
+    });
+
+    if (ok) {
       deleteAccount(acc.id);
+      toast.success(`تم حذف الحساب "${acc.nameAr}" بنجاح`);
     }
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nameAr.trim() || !code.trim()) return;
+    if (!nameAr.trim() || !code.trim()) {
+      toast.error('يرجى تعبئة رمز الحساب والاسم بالعربية');
+      return;
+    }
 
     const parent = accounts.find((a) => a.id === parentId);
     const level = parent ? parent.level + 1 : 1;
@@ -134,6 +148,7 @@ export const ChartOfAccountsView: React.FC = () => {
         parentId: parentId || null,
         isTransactional,
       });
+      toast.success(`تم تحديث الحساب (${code} - ${nameAr}) بنجاح`);
     } else {
       addAccount({
         code,
@@ -145,6 +160,7 @@ export const ChartOfAccountsView: React.FC = () => {
         level,
         isTransactional,
       });
+      toast.success(`تمت إضافة الحساب (${code} - ${nameAr}) بنجاح`);
     }
     setModalOpen(false);
   };

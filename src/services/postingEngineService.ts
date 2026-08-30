@@ -29,7 +29,7 @@ export function recalculateAccountBalances(
 
   // Filter ONLY posted entries (excluding draft, cancelled, reversed, etc.)
   const activePostedEntries = allEntries.filter(
-    (e) => e.status === 'posted' && !e.isReversed
+    (e) => e.status === 'posted' && !e.isReversal
   );
 
   for (const entry of activePostedEntries) {
@@ -46,9 +46,9 @@ export function recalculateAccountBalances(
     const totalDebit = Number(totals.debit.toFixed(2));
     const totalCredit = Number(totals.credit.toFixed(2));
 
-    // Determine balance based on normal balance nature
+    // Determine balance based on normal balance nature (nature is 'debit' | 'credit')
     let balance = 0;
-    if (account.normalBalance === 'debit') {
+    if (account.nature === 'debit') {
       balance = Number((totalDebit - totalCredit).toFixed(2));
     } else {
       balance = Number((totalCredit - totalDebit).toFixed(2));
@@ -56,8 +56,6 @@ export function recalculateAccountBalances(
 
     return {
       ...account,
-      debit: totalDebit,
-      credit: totalCredit,
       balance,
     };
   });
@@ -92,7 +90,7 @@ export function buildReversalJournalEntry(params: {
     id: reversalEntryId,
     entryNumber: reversalEntryNumber,
     date: reversalDate,
-    referenceType: 'reversal',
+    referenceType: 'manual',
     referenceId: originalEntry.id,
     referenceNumber: originalEntry.entryNumber,
     narrationAr: `قيد تسوية عكسي لإلغاء القيد رقم (${originalEntry.entryNumber}) - السبب: ${reason}`,
@@ -101,7 +99,9 @@ export function buildReversalJournalEntry(params: {
     totalCredit: originalEntry.totalDebit,
     isBalanced: true,
     status: 'posted',
-    isReversed: false,
+    isReversal: true,
+    reversedEntryId: originalEntry.id,
+    reversedEntryNumber: originalEntry.entryNumber,
     postedAt: nowIso,
     createdAt: nowIso,
   };

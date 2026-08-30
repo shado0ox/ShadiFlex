@@ -31,7 +31,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
         timestamp: `${invoice.issueDate}T${invoice.issueTime || '12:00:00'}Z`,
         totalAmount: invoice.totalAmount,
         vatAmount: invoice.vatTotal,
-        invoiceHash: invoice.hash,
+        invoiceHash: invoice.uuid || invoice.id,
       });
       setQrDataUrl(qr);
     };

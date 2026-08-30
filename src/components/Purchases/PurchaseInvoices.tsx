@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { useToast } from '../../context/ToastContext';
 import { PaymentMethod, PaymentStatus, InvoiceItem, PurchaseInvoice } from '../../types/accounting';
 import { formatSAR, tafqeetArabic } from '../../utils/currency';
 import { documentSequenceService } from '../../services/documentSequenceService';
 import { DocumentReversalModal } from '../Common/DocumentReversalModal';
+import { EmptyState } from '../Common/EmptyState';
 import {
   X,
   Plus,
@@ -36,6 +38,7 @@ export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, on
     checkDateInFiscalYear,
     checkDateInFiscalPeriod,
   } = useAccounting();
+  const { toast } = useToast();
 
   const fiscalYear = companySettings.fiscalYear || new Date().getFullYear();
   const nextPurchaseNumber = documentSequenceService.peekNextNumber(
@@ -528,12 +531,39 @@ export const PurchaseInvoices: React.FC<{ onOpenNewPurchase: () => void }> = ({ 
     reversePostedDocument,
     deletePurchaseInvoice,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Reversal Modal State
   const [reversalModalOpen, setReversalModalOpen] = useState(false);
   const [invoiceToReverse, setInvoiceToReverse] = useState<PurchaseInvoice | null>(null);
+
+  const handlePostInvoice = async (pur: PurchaseInvoice) => {
+    const ok = await confirmModal({
+      title: 'ترحيل فاتورة المشتريات',
+      message: `هل أنت متأكد من ترحيل فاتورة المشتريات ${pur.invoiceNumber}؟ سيتم إنشاء القيود وتحديث كميات وأسعار المخزون ورصيد المورد.`,
+      severity: 'warning',
+      confirmLabel: 'تأكيد الترحيل',
+    });
+    if (ok) {
+      postDocument('purchase_invoice', pur.id);
+      toast.success(`تم ترحيل فاتورة المشتريات ${pur.invoiceNumber} وإيداع المخزون بنجاح`);
+    }
+  };
+
+  const handleDeleteInvoice = async (pur: PurchaseInvoice) => {
+    const ok = await confirmModal({
+      title: 'حذف مسودة فاتورة المشتريات',
+      message: `هل أنت متأكد من حذف مسودة فاتورة المشتريات ${pur.invoiceNumber}؟`,
+      severity: 'danger',
+      confirmLabel: 'حذف المسودة',
+    });
+    if (ok) {
+      deletePurchaseInvoice(pur.id);
+      toast.success(`تم حذف مسودة الفاتورة ${pur.invoiceNumber} بنجاح`);
+    }
+  };
 
   const filtered = purchaseInvoices.filter((p) => {
     const matchesSearch =
@@ -683,7 +713,7 @@ export const PurchaseInvoices: React.FC<{ onOpenNewPurchase: () => void }> = ({ 
                           {status === 'draft' && (
                             <>
                               <button
-                                onClick={() => postDocument('purchase_invoice', pur.id)}
+                                onClick={() => handlePostInvoice(pur)}
                                 className="flex items-center gap-1 p-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white transition font-bold text-[11px] border border-blue-200"
                                 title="ترحيل فاتورة المشتريات وتحديث الحسابات والمخزون"
                               >
@@ -691,9 +721,17 @@ export const PurchaseInvoices: React.FC<{ onOpenNewPurchase: () => void }> = ({ 
                                 <span>ترحيل</span>
                               </button>
                               <button
-                                onClick={() => {
-                                  const reason = prompt('سبب إلغاء مسودة فاتورة المشتريات:') || 'إلغاء مسودة';
-                                  cancelDraftDocument('purchase_invoice', pur.id, reason);
+                                onClick={async () => {
+                                  const ok = await confirmModal({
+                                    title: 'إلغاء مسودة فاتورة المشتريات',
+                                    message: `هل أنت متأكد من إلغاء مسودة فاتورة المشتريات ${pur.invoiceNumber}؟`,
+                                    severity: 'warning',
+                                    confirmLabel: 'تأكيد الإلغاء',
+                                  });
+                                  if (ok) {
+                                    cancelDraftDocument('purchase_invoice', pur.id, 'إلغاء مسودة');
+                                    toast.info(`تم إلغاء مسودة الفاتورة ${pur.invoiceNumber}`);
+                                  }
                                 }}
                                 className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                                 title="إلغاء المسودة"
@@ -701,11 +739,7 @@ export const PurchaseInvoices: React.FC<{ onOpenNewPurchase: () => void }> = ({ 
                                 <XCircle className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm(`هل أنت متأكد من حذف مسودة فاتورة المشتريات ${pur.invoiceNumber}؟`)) {
-                                    deletePurchaseInvoice(pur.id);
-                                  }
-                                }}
+                                onClick={() => handleDeleteInvoice(pur)}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                 title="حذف المسودة"
                               >

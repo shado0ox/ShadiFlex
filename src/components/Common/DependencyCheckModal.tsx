@@ -7,9 +7,12 @@ interface DependencyCheckModalProps {
   onClose: () => void;
   title: string;
   entityName: string;
+  entityType?: string;
   checkResult: DependencyCheckResult | null;
   onDeactivate?: () => void;
+  onToggleDeactivate?: () => void;
   isActive?: boolean;
+  isCurrentlyActive?: boolean;
 }
 
 export const DependencyCheckModal: React.FC<DependencyCheckModalProps> = ({
@@ -19,9 +22,13 @@ export const DependencyCheckModal: React.FC<DependencyCheckModalProps> = ({
   entityName,
   checkResult,
   onDeactivate,
+  onToggleDeactivate,
   isActive = true,
+  isCurrentlyActive,
 }) => {
   if (!isOpen || !checkResult) return null;
+  const activeStatus = isCurrentlyActive !== undefined ? isCurrentlyActive : isActive;
+  const handleToggle = onToggleDeactivate || onDeactivate;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -94,17 +101,17 @@ export const DependencyCheckModal: React.FC<DependencyCheckModalProps> = ({
             إلغاء الأمر
           </button>
 
-          {onDeactivate && (
+          {handleToggle && (
             <button
               type="button"
               onClick={() => {
-                onDeactivate();
+                handleToggle();
                 onClose();
               }}
               className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-2 transition shadow-xs"
             >
               <Power className="w-4 h-4" />
-              <span>{isActive ? 'تعطيل الحساب / السجل الآن' : 'تنشيط السجل'}</span>
+              <span>{activeStatus ? 'تعطيل الحساب / السجل الآن' : 'تنشيط السجل'}</span>
             </button>
           )}
         </div>

@@ -1,6 +1,7 @@
 import React, { useState, Suspense, lazy } from 'react';
 import { AccountingProvider, useAccounting } from './context/AccountingContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { ToastProvider } from './context/ToastContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
@@ -8,6 +9,7 @@ import { DesignerSignature } from './components/Signature/DesignerSignature';
 import { DemoBanner } from './components/DemoBanner';
 import { ErrorBoundary } from './components/Common/ErrorBoundary';
 import { LoadingFallback } from './components/Common/LoadingFallback';
+import { NotFoundTab } from './components/Common/NotFoundTab';
 import { SalesInvoice } from './types/accounting';
 
 // Lazy Loaded Pages and Heavy Components
@@ -74,8 +76,30 @@ const NewJournalEntryModal = lazy(() =>
   import('./components/JournalEntries/JournalEntriesView').then((m) => ({ default: m.NewJournalEntryModal }))
 );
 
+const VALID_TABS = [
+  'dashboard',
+  'pos_sales',
+  'pos_management',
+  'sales',
+  'purchases',
+  'expenses',
+  'debit_credit_notes',
+  'vouchers',
+  'parties',
+  'inventory',
+  'accounts',
+  'journal',
+  'financial_statements',
+  'vat_return',
+  'reports',
+  'settings',
+  'zatca_phase2',
+  'ai_advisor',
+  'audit_logs',
+];
+
 const MainLayout: React.FC = () => {
-  const { activeTab, salesInvoices } = useAccounting();
+  const { activeTab, setActiveTab, salesInvoices } = useAccounting();
   const { direction } = useLanguage();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -91,6 +115,8 @@ const MainLayout: React.FC = () => {
       setPrintInvoice(found);
     }
   };
+
+  const isKnownTab = VALID_TABS.includes(activeTab);
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans" dir={direction}>
@@ -116,7 +142,18 @@ const MainLayout: React.FC = () => {
         {/* Dynamic Page Views Wrapped in ErrorBoundary and Suspense */}
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback message="جاري تحميل الصفحة..." />}>
-            {activeTab === 'pos_sales' ? (
+            {!isKnownTab ? (
+              <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-100">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <NotFoundTab
+                    currentTab={activeTab}
+                    onNavigateHome={() => setActiveTab('dashboard')}
+                    onNavigatePos={() => setActiveTab('pos_sales')}
+                  />
+                  <DesignerSignature variant="footer" />
+                </div>
+              </main>
+            ) : activeTab === 'pos_sales' ? (
               <main className="flex-1 overflow-hidden bg-slate-100">
                 <PosTerminal />
               </main>
@@ -229,9 +266,11 @@ export default function App() {
   return (
     <ErrorBoundary>
       <LanguageProvider>
-        <AccountingProvider>
-          <MainLayout />
-        </AccountingProvider>
+        <ToastProvider>
+          <AccountingProvider>
+            <MainLayout />
+          </AccountingProvider>
+        </ToastProvider>
       </LanguageProvider>
     </ErrorBoundary>
   );

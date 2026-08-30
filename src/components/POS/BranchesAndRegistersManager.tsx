@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { useToast } from '../../context/ToastContext';
 import { Branch, CashRegister, CashierShift, DependencyCheckResult } from '../../types/accounting';
 import { PosShiftModal } from './PosShiftModal';
 import { DependencyCheckModal } from '../Common/DependencyCheckModal';
+import { EmptyState } from '../Common/EmptyState';
 import {
   Store,
   Computer,
@@ -52,6 +54,7 @@ export const BranchesAndRegistersManager: React.FC = () => {
     checkCashRegisterDependencies,
     setActiveTab,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
 
   const [activeSubTab, setActiveSubTab] = useState<'branches' | 'registers' | 'shifts'>('branches');
 
@@ -155,18 +158,20 @@ export const BranchesAndRegistersManager: React.FC = () => {
   const handleSaveBranch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!branchForm.nameAr.trim()) {
-      alert('يرجى إدخال اسم الفرع بالعربية!');
+      toast.error('يرجى إدخال اسم الفرع بالعربية!');
       return;
     }
     if (editingBranchId) {
       updateBranch(editingBranchId, branchForm);
+      toast.success(`تم تحديث بيانات فرع "${branchForm.nameAr}" بنجاح`);
     } else {
       addBranch(branchForm);
+      toast.success(`تمت إضافة فرع "${branchForm.nameAr}" بنجاح`);
     }
     setShowBranchModal(false);
   };
 
-  const handleDeleteBranch = (branchId: string, branchName: string) => {
+  const handleDeleteBranch = async (branchId: string, branchName: string) => {
     const check = checkBranchDependencies(branchId);
     const br = branches.find((b) => b.id === branchId);
     if (!check.canDelete) {
@@ -180,8 +185,15 @@ export const BranchesAndRegistersManager: React.FC = () => {
       setDepModalOpen(true);
       return;
     }
-    if (confirm(`هل أنت متأكد من حذف فرع (${branchName}) نهائياً؟`)) {
+    const ok = await confirmModal({
+      title: 'حذف فرع',
+      message: `هل أنت متأكد من حذف فرع (${branchName}) نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.`,
+      severity: 'danger',
+      confirmLabel: 'حذف الفرع',
+    });
+    if (ok) {
       deleteBranch(branchId);
+      toast.success(`تم حذف فرع "${branchName}" بنجاح`);
     }
   };
 
@@ -234,7 +246,7 @@ export const BranchesAndRegistersManager: React.FC = () => {
   const handleSaveRegister = (e: React.FormEvent) => {
     e.preventDefault();
     if (!registerForm.nameAr.trim()) {
-      alert('يرجى إدخال اسم صندوق الكاشير!');
+      toast.error('يرجى إدخال اسم صندوق الكاشير!');
       return;
     }
     const b = branches.find((br) => br.id === registerForm.branchId);
@@ -245,13 +257,15 @@ export const BranchesAndRegistersManager: React.FC = () => {
 
     if (editingRegisterId) {
       updateCashRegister(editingRegisterId, payload);
+      toast.success(`تم تحديث صندوق الكاشير "${payload.nameAr}" بنجاح`);
     } else {
       addCashRegister(payload);
+      toast.success(`تمت إضافة صندوق الكاشير "${payload.nameAr}" بنجاح`);
     }
     setShowRegisterModal(false);
   };
 
-  const handleDeleteRegister = (regId: string, regName: string) => {
+  const handleDeleteRegister = async (regId: string, regName: string) => {
     const check = checkCashRegisterDependencies(regId);
     const reg = cashRegisters.find((r) => r.id === regId);
     if (!check.canDelete) {
@@ -265,8 +279,15 @@ export const BranchesAndRegistersManager: React.FC = () => {
       setDepModalOpen(true);
       return;
     }
-    if (confirm(`هل أنت متأكد من حذف صندوق الكاشير (${regName})؟`)) {
+    const ok = await confirmModal({
+      title: 'حذف صندوق كاشير',
+      message: `هل أنت متأكد من حذف صندوق الكاشير (${regName})؟`,
+      severity: 'danger',
+      confirmLabel: 'حذف الصندوق',
+    });
+    if (ok) {
       deleteCashRegister(regId);
+      toast.success(`تم حذف صندوق الكاشير "${regName}" بنجاح`);
     }
   };
 
@@ -974,7 +995,7 @@ export const BranchesAndRegistersManager: React.FC = () => {
                       className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg outline-hidden"
                     >
                       {accounts
-                        .filter((a) => a.code.startsWith('1101') || a.accountType === 'current_asset')
+                        .filter((a) => a.code.startsWith('1101') || a.type === 'asset')
                         .map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.code} - {a.nameAr}
@@ -998,7 +1019,7 @@ export const BranchesAndRegistersManager: React.FC = () => {
                       className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg outline-hidden"
                     >
                       {accounts
-                        .filter((a) => a.code.startsWith('1101') || a.code.startsWith('1102') || a.accountType === 'current_asset')
+                        .filter((a) => a.code.startsWith('1101') || a.code.startsWith('1102') || a.type === 'asset')
                         .map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.code} - {a.nameAr}

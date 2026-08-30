@@ -34,12 +34,14 @@ import { SalesInvoice } from '../types/accounting';
 interface DashboardProps {
   onOpenNewSalesInvoice: () => void;
   onOpenNewPurchaseInvoice: () => void;
+  onOpenNewJournalEntry?: () => void;
   onViewInvoicePrint: (invoice: SalesInvoice) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
   onOpenNewSalesInvoice,
   onOpenNewPurchaseInvoice,
+  onOpenNewJournalEntry,
   onViewInvoicePrint,
 }) => {
   const {
@@ -461,7 +463,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
             <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
               <span>المصروفات التشغيلية:</span>
-              <span className="font-mono font-bold text-slate-800">{formatSAR(incomeStmt.totalExpenses)}</span>
+              <span className="font-mono font-bold text-slate-800">{formatSAR(incomeStmt.operatingExpenses)}</span>
             </div>
             <div className="flex justify-between py-1 text-slate-600">
               <span>صافي ربح الفترة:</span>

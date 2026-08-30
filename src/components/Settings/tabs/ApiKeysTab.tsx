@@ -26,12 +26,9 @@ export const ApiKeysTab: React.FC = () => {
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [keyName, setKeyName] = useState('');
   const [keyEnv, setKeyEnv] = useState<'production' | 'test'>('production');
-  const [keyPermissions, setKeyPermissions] = useState<string[]>([
-    'invoices:read',
-    'invoices:write',
-    'customers:read',
-    'reports:read',
-  ]);
+  const [keyPermissions, setKeyPermissions] = useState<
+    Array<'invoices:read' | 'invoices:write' | 'expenses:read' | 'expenses:write' | 'zatca:sync' | 'reports:read'>
+  >(['invoices:read', 'invoices:write', 'reports:read']);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [revealedKeyId, setRevealedKeyId] = useState<string | null>(null);
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<ApiKey | null>(null);
@@ -57,7 +54,7 @@ export const ApiKeysTab: React.FC = () => {
     setNewlyCreatedKey(newKey);
     setIsApiKeyModalOpen(false);
     setKeyName('');
-    setKeyPermissions(['invoices:read', 'invoices:write', 'customers:read', 'reports:read']);
+    setKeyPermissions(['invoices:read', 'invoices:write', 'reports:read']);
   };
 
   return (
@@ -322,12 +319,12 @@ export const ApiKeysTab: React.FC = () => {
                 <label className="block font-bold text-slate-700 mb-2">صلاحيات المفتاح (Permissions)</label>
                 <div className="space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   {[
-                    { id: 'invoices:read', label: 'قراءة واستعلام الفواتير' },
-                    { id: 'invoices:write', label: 'إصدار وتعديل فواتير المبيعات' },
-                    { id: 'customers:read', label: 'قراءة بيانات وسجلات العملاء' },
-                    { id: 'customers:write', label: 'إضافة وتحديث العملاء' },
-                    { id: 'vouchers:write', label: 'إنشاء سندات القبض والصرف' },
-                    { id: 'reports:read', label: 'استخراج التقارير المالية والإقرارات' },
+                    { id: 'invoices:read' as const, label: 'قراءة واستعلام الفواتير' },
+                    { id: 'invoices:write' as const, label: 'إصدار وتعديل فواتير المبيعات' },
+                    { id: 'expenses:read' as const, label: 'قراءة بيانات وسجلات المصروفات' },
+                    { id: 'expenses:write' as const, label: 'إضافة وتحديث المصروفات' },
+                    { id: 'zatca:sync' as const, label: 'مزامنة منصة زاتكا ZATCA' },
+                    { id: 'reports:read' as const, label: 'استخراج التقارير المالية والإقرارات' },
                   ].map((perm) => (
                     <label key={perm.id} className="flex items-center gap-2 cursor-pointer">
                       <input

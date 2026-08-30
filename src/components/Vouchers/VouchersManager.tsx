@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { useToast } from '../../context/ToastContext';
 import { Voucher, VoucherType } from '../../types/accounting';
 import { formatSAR, formatDateAr } from '../../utils/currency';
 import { VoucherFormModal } from './VoucherFormModal';
 import { VoucherPrintModal } from './VoucherPrintModal';
 import { DocumentReversalModal } from '../Common/DocumentReversalModal';
+import { EmptyState } from '../Common/EmptyState';
 import {
   DollarSign,
   Plus,
@@ -36,6 +38,7 @@ export const VouchersManager: React.FC = () => {
     cancelDraftDocument,
     reversePostedDocument,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'receipt' | 'payment'>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -48,6 +51,32 @@ export const VouchersManager: React.FC = () => {
   // Reversal Modal State
   const [reversalModalOpen, setReversalModalOpen] = useState(false);
   const [voucherToReverse, setVoucherToReverse] = useState<Voucher | null>(null);
+
+  const handlePostVoucher = async (v: Voucher) => {
+    const ok = await confirmModal({
+      title: 'ترحيل السند المالي',
+      message: `هل أنت متأكد من ترحيل السند ${v.voucherNumber}؟ سيتم إنشاء وتثبيت القيود في دفتر اليومية وتحديث أرصدة الخزينة والبنك وحساب الطرف.`,
+      severity: 'warning',
+      confirmLabel: 'تأكيد الترحيل',
+    });
+    if (ok) {
+      postDocument('voucher', v.id);
+      toast.success(`تم ترحيل السند ${v.voucherNumber} بنجاح`);
+    }
+  };
+
+  const handleDeleteVoucher = async (v: Voucher) => {
+    const ok = await confirmModal({
+      title: 'حذف مسودة السند',
+      message: `هل أنت متأكد من حذف مسودة السند ${v.voucherNumber}؟`,
+      severity: 'danger',
+      confirmLabel: 'حذف المسودة',
+    });
+    if (ok) {
+      deleteVoucher(v.id);
+      toast.success(`تم حذف مسودة السند ${v.voucherNumber} بنجاح`);
+    }
+  };
 
   // Statistics
   const totalReceipts = vouchers
@@ -398,16 +427,24 @@ export const VouchersManager: React.FC = () => {
                           {status === 'draft' && (
                             <>
                               <button
-                                onClick={() => postDocument('voucher', v.id)}
+                                onClick={() => handlePostVoucher(v)}
                                 title="ترحيل السند المحاسبي وتوليد القيد"
                                 className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  const reason = prompt('سبب إلغاء المسودة:') || 'إلغاء مسودة';
-                                  cancelDraftDocument('voucher', v.id, reason);
+                                onClick={async () => {
+                                  const ok = await confirmModal({
+                                    title: 'إلغاء مسودة السند',
+                                    message: `هل أنت متأكد من إلغاء مسودة السند ${v.voucherNumber}؟`,
+                                    severity: 'warning',
+                                    confirmLabel: 'تأكيد الإلغاء',
+                                  });
+                                  if (ok) {
+                                    cancelDraftDocument('voucher', v.id, 'إلغاء مسودة');
+                                    toast.info(`تم إلغاء مسودة السند ${v.voucherNumber}`);
+                                  }
                                 }}
                                 title="إلغاء المسودة"
                                 className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
@@ -415,11 +452,7 @@ export const VouchersManager: React.FC = () => {
                                 <XCircle className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm(`هل أنت متأكد من حذف مسودة السند ${v.voucherNumber}؟`)) {
-                                    deleteVoucher(v.id);
-                                  }
-                                }}
+                                onClick={() => handleDeleteVoucher(v)}
                                 title="حذف مسودة السند"
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                               >

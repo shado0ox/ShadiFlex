@@ -61,7 +61,7 @@ export const PosParkedOrdersModal: React.FC<PosParkedOrdersModalProps> = ({
                       {new Date(order.savedAt).toLocaleTimeString('ar-SA')}
                     </span>
                     <span>{order.items.length} أصناف</span>
-                    {order.note && <span className="text-amber-800 font-medium">({order.note})</span>}
+                    {order.notes && <span className="text-amber-800 font-medium">({order.notes})</span>}
                   </div>
                   <div className="text-xs text-slate-600 truncate max-w-sm">
                     {order.items.map((i) => `${i.nameAr} × ${i.quantity}`).join('، ')}

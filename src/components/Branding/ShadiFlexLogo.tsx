@@ -44,7 +44,6 @@ export const ShadiFlexLogo: React.FC<ShadiFlexLogoProps> = ({
           width={currentSize.height}
           height={currentSize.height}
           fill="none"
-          dir="ltr"
           style={{ direction: 'ltr' }}
           xmlns="http://www.w3.org/2000/svg"
         >
@@ -94,7 +93,6 @@ export const ShadiFlexLogo: React.FC<ShadiFlexLogoProps> = ({
         width={currentSize.width}
         height={currentSize.height}
         fill="none"
-        dir="ltr"
         style={{ direction: 'ltr', overflow: 'visible' }}
         xmlns="http://www.w3.org/2000/svg"
       >

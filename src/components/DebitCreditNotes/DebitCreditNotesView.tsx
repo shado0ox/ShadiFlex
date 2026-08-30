@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { useToast } from '../../context/ToastContext';
 import { DebitCreditNote, NoteType } from '../../types/accounting';
 import { formatSAR, formatDateAr } from '../../utils/currency';
 import { DebitCreditNoteModal } from './DebitCreditNoteModal';
 import { DebitCreditNotePrintModal } from './DebitCreditNotePrintModal';
 import { DocumentReversalModal } from '../Common/DocumentReversalModal';
+import { EmptyState } from '../Common/EmptyState';
 import {
   FileText,
   Plus,
@@ -36,6 +38,7 @@ export const DebitCreditNotesView: React.FC = () => {
     reversePostedDocument,
     setActiveTab,
   } = useAccounting();
+  const { toast, confirmModal } = useToast();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'credit_note' | 'debit_note'>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -48,6 +51,32 @@ export const DebitCreditNotesView: React.FC = () => {
   // Reversal Modal State
   const [reversalModalOpen, setReversalModalOpen] = useState(false);
   const [noteToReverse, setNoteToReverse] = useState<DebitCreditNote | null>(null);
+
+  const handlePostNote = async (note: DebitCreditNote) => {
+    const ok = await confirmModal({
+      title: 'ترحيل الإشعار المحاسبي',
+      message: `هل أنت متأكد من ترحيل الإشعار ${note.noteNumber}؟ سيتم إنشاء القيود العكسية وتعديل رصيد الضريبة والمخزون وحساب الطرف المعني.`,
+      severity: 'warning',
+      confirmLabel: 'تأكيد الترحيل',
+    });
+    if (ok) {
+      postDocument('debit_credit_note', note.id);
+      toast.success(`تم ترحيل الإشعار ${note.noteNumber} بنجاح`);
+    }
+  };
+
+  const handleDeleteNote = async (note: DebitCreditNote) => {
+    const ok = await confirmModal({
+      title: 'حذف مسودة الإشعار',
+      message: `هل أنت متأكد من حذف مسودة الإشعار رقم ${note.noteNumber}؟`,
+      severity: 'danger',
+      confirmLabel: 'حذف المسودة',
+    });
+    if (ok) {
+      deleteDebitCreditNote(note.id);
+      toast.success(`تم حذف مسودة الإشعار ${note.noteNumber} بنجاح`);
+    }
+  };
 
   // Statistics calculation
   const totalCreditNotes = debitCreditNotes
@@ -381,16 +410,24 @@ export const DebitCreditNotesView: React.FC = () => {
                           {status === 'draft' && (
                             <>
                               <button
-                                onClick={() => postDocument('debit_credit_note', note.id)}
+                                onClick={() => handlePostNote(note)}
                                 title="ترحيل الإشعار المحاسبي وتوليد القيد"
                                 className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  const reason = prompt('سبب إلغاء مسودة الإشعار:') || 'إلغاء مسودة';
-                                  cancelDraftDocument('debit_credit_note', note.id, reason);
+                                onClick={async () => {
+                                  const ok = await confirmModal({
+                                    title: 'إلغاء مسودة الإشعار',
+                                    message: `هل أنت متأكد من إلغاء مسودة الإشعار رقم ${note.noteNumber}؟`,
+                                    severity: 'warning',
+                                    confirmLabel: 'تأكيد الإلغاء',
+                                  });
+                                  if (ok) {
+                                    cancelDraftDocument('debit_credit_note', note.id, 'إلغاء مسودة');
+                                    toast.info(`تم إلغاء مسودة الإشعار ${note.noteNumber}`);
+                                  }
                                 }}
                                 title="إلغاء المسودة"
                                 className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
@@ -398,11 +435,7 @@ export const DebitCreditNotesView: React.FC = () => {
                                 <XCircle className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm(`هل أنت متأكد من حذف مسودة الإشعار رقم ${note.noteNumber}؟`)) {
-                                    deleteDebitCreditNote(note.id);
-                                  }
-                                }}
+                                onClick={() => handleDeleteNote(note)}
                                 title="حذف مسودة الإشعار"
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                               >

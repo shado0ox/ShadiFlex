@@ -206,10 +206,10 @@ export const FinancialPeriodsTab: React.FC = () => {
 
                     <td className="p-3.5">
                       <span className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-[11px]">
-                        {period.quarter === 'Q1' && 'الربع الأول Q1'}
-                        {period.quarter === 'Q2' && 'الربع الثاني Q2'}
-                        {period.quarter === 'Q3' && 'الربع الثالث Q3'}
-                        {period.quarter === 'Q4' && 'الربع الرابع Q4'}
+                        {period.quarter === 1 && 'الربع الأول Q1'}
+                        {period.quarter === 2 && 'الربع الثاني Q2'}
+                        {period.quarter === 3 && 'الربع الثالث Q3'}
+                        {period.quarter === 4 && 'الربع الرابع Q4'}
                       </span>
                     </td>
 

@@ -437,3 +437,18 @@ export function clearPreImportEmergencyBackup(): void {
     console.error(err);
   }
 }
+
+/**
+ * Compatibility alias for validateAccountingBackupJson
+ */
+export function validateBackupPayload(rawJsonOrObject: string | unknown) {
+  const res = validateAccountingBackupJson(rawJsonOrObject);
+  return {
+    isValid: res.isValid,
+    errors: res.errors.map((e) => `[${e.section}] ${e.message}`),
+    warnings: res.warnings.map((w) => `[${w.section}] ${w.message}`),
+    sanitizedData: res.sanitizedData,
+    summary: res.summary,
+  };
+}
+

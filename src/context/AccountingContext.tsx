@@ -323,7 +323,23 @@ const AccountingContext = createContext<AccountingContextType | undefined>(undef
 
 export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const repo = getAccountingRepository();
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTabState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('shadiflex_active_tab');
+      return saved || 'dashboard';
+    } catch {
+      return 'dashboard';
+    }
+  });
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    try {
+      localStorage.setItem('shadiflex_active_tab', tab);
+    } catch (e) {
+      console.warn('Failed to persist active tab to localStorage', e);
+    }
+  };
 
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => repo.loadCompanySettings());
   const [accounts, setAccounts] = useState<Account[]>(() => repo.loadAccounts());
@@ -2636,7 +2652,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const target = salesInvoices.find((i) => i.id === id);
       if (!target) throw new Error('المستند غير موجود');
       assertDateNotInClosedPeriod(target.issueDate, 'فاتورة مبيعات');
-      if (target.status === 'posted' || target.status === 'issued') {
+      if (target.status === 'posted') {
         throw new Error('لا يمكن إلغاء مستند مُرحّل مباشرة؛ يجب استخدام القيد العكسي (reversePostedDocument).');
       }
       setSalesInvoices((prev) =>
@@ -2656,7 +2672,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const target = debitCreditNotes.find((n) => n.id === id);
       if (!target) throw new Error('المستند غير موجود');
       assertDateNotInClosedPeriod(target.issueDate, target.type === 'credit_note' ? 'إشعار دائن' : 'إشعار مدين');
-      if (target.status === 'posted' || target.status === 'issued') {
+      if (target.status === 'posted') {
         throw new Error('لا يمكن إلغاء إشعار مُرحّل مباشرة؛ يجب استخدام القيد العكسي.');
       }
       setDebitCreditNotes((prev) =>
@@ -2734,7 +2750,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (type === 'sales_invoice') {
       const target = salesInvoices.find((i) => i.id === id);
       if (!target) throw new Error('فاتورة المبيعات غير موجودة');
-      if (target.status !== 'posted' && target.status !== 'issued') {
+      if (target.status !== 'posted') {
         throw new Error('فقط الفواتير المرحلة (posted) يمكن عكسها محاسبياً.');
       }
       docRefNumber = target.invoiceNumber;
@@ -2866,7 +2882,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } else if (type === 'debit_credit_note') {
       const target = debitCreditNotes.find((n) => n.id === id);
       if (!target) throw new Error('الإشعار غير موجود');
-      if (target.status !== 'posted' && target.status !== 'issued') {
+      if (target.status !== 'posted') {
         throw new Error('فقط الإشعارات المرحلة يمكن عكسها.');
       }
       docRefNumber = target.noteNumber;
@@ -4587,8 +4603,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let exemptSales = 0;
 
     salesInvoices.forEach((inv) => {
-      // Strictly include posted/issued invoices only (exclude draft, cancelled, reversed)
-      if (inv.status !== 'posted' && inv.status !== 'issued') return;
+      // Strictly include posted invoices only (exclude draft, cancelled, reversed)
+      if (inv.status !== 'posted') return;
       if (startDate && inv.issueDate < startDate) return;
       if (endDate && inv.issueDate > endDate) return;
 
@@ -4643,8 +4659,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Factor in Credit Notes and Debit Notes (ZATCA VAT adjustments)
     debitCreditNotes.forEach((note) => {
-      // Strictly include posted/issued notes only
-      if (note.status !== 'posted' && note.status !== 'issued') return;
+      // Strictly include posted notes only
+      if (note.status !== 'posted') return;
       if (startDate && note.issueDate < startDate) return;
       if (endDate && note.issueDate > endDate) return;
 
@@ -4726,6 +4742,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteApiKey,
         closeFiscalYear,
         reopenFiscalYear,
+        financialPeriods,
+        closeFinancialPeriod,
+        reopenFinancialPeriod,
+        checkDateInFiscalPeriod,
+        checkDateInFiscalYear,
         recordInvoicePayment,
         createManualJournalEntry,
         postDocument,

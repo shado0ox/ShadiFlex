@@ -14,14 +14,15 @@ export const CompanyProfileTab: React.FC = () => {
 
   // Company Profile State
   const [profileForm, setProfileForm] = useState<CompanySettings>(() => {
-    const nat = companySettings.nationalAddress || companySettings.address || {
-      city: 'الرياض',
-      district: 'العليا',
-      street: 'طريق الملك فهد الفرعي',
-      buildingNumber: '7342',
-      postalCode: '12214',
-      additionalNumber: '3190',
-      country: 'المملكة العربية السعودية',
+    const rawNat = companySettings.nationalAddress || companySettings.address;
+    const nat = {
+      city: rawNat?.city || 'الرياض',
+      district: rawNat?.district || 'العليا',
+      street: rawNat?.street || 'طريق الملك فهد الفرعي',
+      buildingNumber: rawNat?.buildingNumber || '7342',
+      postalCode: rawNat?.postalCode || '12214',
+      additionalNumber: rawNat?.additionalNumber || '3190',
+      country: rawNat?.country || 'المملكة العربية السعودية',
     };
     return {
       ...companySettings,
@@ -36,14 +37,15 @@ export const CompanyProfileTab: React.FC = () => {
 
   // Sync profile form if companySettings changes externally
   useEffect(() => {
-    const nat = companySettings.nationalAddress || companySettings.address || {
-      city: 'الرياض',
-      district: 'العليا',
-      street: 'طريق الملك فهد الفرعي',
-      buildingNumber: '7342',
-      postalCode: '12214',
-      additionalNumber: '3190',
-      country: 'المملكة العربية السعودية',
+    const rawNat = companySettings.nationalAddress || companySettings.address;
+    const nat = {
+      city: rawNat?.city || 'الرياض',
+      district: rawNat?.district || 'العليا',
+      street: rawNat?.street || 'طريق الملك فهد الفرعي',
+      buildingNumber: rawNat?.buildingNumber || '7342',
+      postalCode: rawNat?.postalCode || '12214',
+      additionalNumber: rawNat?.additionalNumber || '3190',
+      country: rawNat?.country || 'المملكة العربية السعودية',
     };
     setProfileForm({
       ...companySettings,

@@ -5,10 +5,10 @@ import {
   Crown,
   Sparkles,
 } from 'lucide-react';
-import { useAccounting } from '../../../context/AccountingContext';
+import { useLanguage } from '../../../context/LanguageContext';
 
 export const LanguageDesignerTab: React.FC = () => {
-  const { language, setLanguage } = useAccounting();
+  const { language, setLanguage } = useLanguage();
 
   return (
     <div className="space-y-6">

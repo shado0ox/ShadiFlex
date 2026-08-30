@@ -183,7 +183,7 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({ isOpen, onCl
         paidAmount: currentPaid,
         remainingAmount,
         notes,
-        status: 'issued',
+        status: 'posted',
       });
 
       confetti({

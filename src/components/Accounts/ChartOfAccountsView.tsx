@@ -354,7 +354,17 @@ export const ChartOfAccountsView: React.FC = () => {
 
       {/* Account Tree View */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 shadow-xs">
-        {rootAccounts.map((root) => renderAccountNode(root))}
+        {rootAccounts.length === 0 ? (
+          <EmptyState
+            icon={FolderTree}
+            title="لا توجد حسابات مطابقة"
+            description="لم يتم العثور على أي حسابات في هذا التصنيف أو التصفية الحالية."
+            actionLabel="إضافة حساب جديد"
+            onAction={() => handleOpenAdd()}
+          />
+        ) : (
+          rootAccounts.map((root) => renderAccountNode(root))
+        )}
       </div>
 
       {/* Statement Modal */}

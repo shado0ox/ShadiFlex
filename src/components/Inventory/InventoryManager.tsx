@@ -369,8 +369,14 @@ export const InventoryManager: React.FC<{ onOpenNewItemModal?: () => void }> = (
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="p-8 text-center text-slate-400">
-                        لا توجد أصناف مطابقة لخيارات البحث أو الفلترة.
+                      <td colSpan={10} className="p-8 text-center">
+                        <EmptyState
+                          icon={Package}
+                          title="لا توجد أصناف في المستودع"
+                          description={searchTerm ? "لم يتم العثور على أي أصناف تطابق معايير البحث الحالية." : "لم يتم تسجيل أصناف مخزون حتى الآن. أضف أول صنف لتتبع المخزون والأسعار."}
+                          actionLabel="إضافة صنف جديد"
+                          onAction={() => handleOpenAdd()}
+                        />
                       </td>
                     </tr>
                   ) : (

@@ -237,12 +237,16 @@ export const PosTerminal: React.FC = () => {
     });
 
     parkOrder({
+      title: `طلب معلق (${cart.length} أصناف)`,
       branchId: currentBranch?.id || 'br_1',
       registerId: currentRegister?.id || 'reg_1',
       cashierName: activeShift?.cashierName || 'كاشير مبيعات',
-      customerId: selectedCustomer?.id,
-      customerName: selectedCustomer?.nameAr,
+      customerId: selectedCustomer?.id || 'cust_walkin',
+      customerName: selectedCustomer?.nameAr || 'عميل نقدي عام',
       items: itemsForPark,
+      subtotal: subtotalBeforeDiscount,
+      discountTotal: totalDiscount,
+      vatTotal,
       totalAmount: totalWithVat,
       notes: 'معلق من شاشة الكاشير',
     });

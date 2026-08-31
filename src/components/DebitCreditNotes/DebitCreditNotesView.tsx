@@ -271,12 +271,17 @@ export const DebitCreditNotesView: React.FC = () => {
             <tbody className="divide-y divide-slate-200">
               {filteredNotes.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Receipt className="w-10 h-10 text-slate-300" />
-                      <p className="font-bold text-sm text-slate-600">لا توجد إشعارات مدينة أو دائنة مطابقة</p>
-                      <p className="text-xs text-slate-400">يمكنك إصدار إشعار جديد بالضغط على الأزرار أعلاه</p>
-                    </div>
+                  <td colSpan={12} className="p-8 text-center">
+                    <EmptyState
+                      icon={Receipt}
+                      title="لا توجد إشعارات مدينة أو دائنة"
+                      description={searchTerm ? "لم يتم العثور على إشعارات تطابق معايير البحث." : "لم يتم إنشاء أي إشعارات مدينة أو دائنة بعد. يمكنك إصدار إشعار لتسوية المردودات أو الخصومات."}
+                      actionLabel="إصدار إشعار دائن جديد"
+                      onAction={() => {
+                        setCreateType('credit_note');
+                        setIsCreateModalOpen(true);
+                      }}
+                    />
                   </td>
                 </tr>
               ) : (

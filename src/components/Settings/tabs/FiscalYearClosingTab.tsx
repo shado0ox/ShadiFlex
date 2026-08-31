@@ -208,8 +208,14 @@ export const FiscalYearClosingTab: React.FC = () => {
               <button
                 type="button"
                 onClick={async () => {
-                  await reopenFiscalYear(reopenTargetId);
-                  setReopenTargetId(null);
+                  try {
+                    await reopenFiscalYear(reopenTargetId);
+                    toast.success('تمت إعادة فتح السنة المالية بنجاح وإلغاء قيد الإقفال');
+                    setReopenTargetId(null);
+                  } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : 'فشل إعادة فتح السنة المالية';
+                    toast.error(msg);
+                  }
                 }}
                 className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors"
               >

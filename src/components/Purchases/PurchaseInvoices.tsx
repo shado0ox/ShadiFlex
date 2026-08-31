@@ -156,7 +156,7 @@ export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, on
     if (isSubmitting) return;
 
     if (!supplierName.trim()) {
-      alert('يرجى تحديد أو إدخال اسم المورد');
+      toast.warning('يرجى تحديد أو إدخال اسم المورد');
       return;
     }
 
@@ -188,11 +188,12 @@ export const PurchaseFormModal: React.FC<PurchaseFormModalProps> = ({ isOpen, on
         origin: { y: 0.6 },
       });
 
+      toast.success(`تم حفظ فاتورة المشتريات ${invoiceNumber} بنجاح!`);
       onSuccess(invoiceNumber);
       onClose();
     } catch (err: any) {
       console.error(err);
-      alert(err?.message || 'حدث خطأ أثناء حفظ فاتورة المشتريات');
+      toast.error(err?.message || 'حدث خطأ أثناء حفظ فاتورة المشتريات');
     } finally {
       setIsSubmitting(false);
     }
@@ -647,8 +648,14 @@ export const PurchaseInvoices: React.FC<{ onOpenNewPurchase: () => void }> = ({ 
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-slate-400">
-                    لا توجد فواتير مشتريات مطابقة للبحث.
+                  <td colSpan={10} className="p-8 text-center">
+                    <EmptyState
+                      icon={ShoppingCart}
+                      title="لا توجد فواتير مشتريات"
+                      description={searchTerm ? "لم يتم العثور على فواتير تطابق معايير البحث." : "لم يتم تسجيل أي فواتير مشتريات حتى الآن. أضف فاتورة مشتريات لتسجيل التكاليف وتحديث المخزون."}
+                      actionLabel="تسجيل فاتورة مشتريات"
+                      onAction={onOpenNewPurchase}
+                    />
                   </td>
                 </tr>
               ) : (

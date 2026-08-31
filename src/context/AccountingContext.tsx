@@ -2060,6 +2060,30 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
+  const deleteJournalEntry = (id: string) => {
+    const target = journalEntries.find((j) => j.id === id);
+    if (!target) return;
+
+    assertDateNotInClosedPeriod(target.date, 'قيد يومية');
+
+    if (target.status === 'posted') {
+      throw new Error('لا يمكن حذف قيد يومية مُرحّل مباشرة حفاظاً على التسلسل المحاسبي. يرجى استخدام القيد العكسي.');
+    }
+
+    const updatedJournal = journalEntries.filter((j) => j.id !== id);
+    setJournalEntries(updatedJournal);
+    setAccounts((prevAccs) => recalculateAccountBalances(updatedJournal, prevAccs));
+
+    logAuditEvent({
+      action: 'delete',
+      entityType: 'journal_entry',
+      entityId: id,
+      before: target as unknown as Record<string, unknown>,
+      reason: `حذف مسودة قيد يومية ${target.entryNumber}`,
+      source: 'web_ui',
+    });
+  };
+
   // -------------------------------------------------------------
   // Document Lifecycle Management (postDocument, cancelDraftDocument, reversePostedDocument)
   // -------------------------------------------------------------
@@ -4730,7 +4754,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         logAuditEvent,
         clearAuditLogs,
         createSalesInvoice,
+        updateSalesInvoice,
+        deleteSalesInvoice,
         createPurchaseInvoice,
+        updatePurchaseInvoice,
+        deletePurchaseInvoice,
         createDebitCreditNote,
         deleteDebitCreditNote,
         createVoucher,
@@ -4746,9 +4774,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         closeFinancialPeriod,
         reopenFinancialPeriod,
         checkDateInFiscalPeriod,
-        checkDateInFiscalYear,
+        checkDateInFiscalYear: checkDateInFiscalYearWrapper,
         recordInvoicePayment,
         createManualJournalEntry,
+        deleteJournalEntry,
         postDocument,
         cancelDraftDocument,
         reversePostedDocument,

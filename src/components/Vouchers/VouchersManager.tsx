@@ -286,12 +286,17 @@ export const VouchersManager: React.FC = () => {
             <tbody className="divide-y divide-slate-200">
               {filteredVouchers.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Wallet className="w-10 h-10 text-slate-300" />
-                      <p className="font-bold text-sm text-slate-600">لا توجد سندات قبض أو صرف مطابقة للبحث</p>
-                      <p className="text-xs text-slate-400">يمكنك إنشاء سند جديد بالضغط على الأزرار أعلاه</p>
-                    </div>
+                  <td colSpan={11} className="p-8 text-center">
+                    <EmptyState
+                      icon={Wallet}
+                      title="لا توجد سندات قبض أو صرف"
+                      description={searchTerm ? "لم يتم العثور على سندات تطابق البحث." : "لم يتم تسجيل أي سندات حتى الآن. ابدأ بإصدار سند قبض لتحصيل المبالغ أو سند صرف للمدفوعات."}
+                      actionLabel="إنشاء سند قبض جديد"
+                      onAction={() => {
+                        setCreateType('receipt');
+                        setIsCreateModalOpen(true);
+                      }}
+                    />
                   </td>
                 </tr>
               ) : (

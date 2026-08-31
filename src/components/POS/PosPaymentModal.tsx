@@ -78,17 +78,11 @@ export const PosPaymentModal: React.FC<PosPaymentModalProps> = ({
         changeReturned,
         notes,
       });
-    } else if (selectedMethod === 'mada' || selectedMethod === 'pos_card') {
+    } else if (selectedMethod === 'mada') {
       onConfirmPayment({
         paymentMethod: 'mada',
         paidAmount: totalAmount,
         madaAuthCode: madaAuthCode.trim() || `AUTH-${Math.floor(100000 + Math.random() * 900000)}`,
-        notes,
-      });
-    } else if (selectedMethod === 'pos_card') {
-      onConfirmPayment({
-        paymentMethod: 'pos_card',
-        paidAmount: totalAmount,
         notes,
       });
     } else if (selectedMethod === 'credit') {

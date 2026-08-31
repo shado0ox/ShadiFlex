@@ -99,6 +99,7 @@ export const BackupRestoreTab: React.FC = () => {
           setValidationResult({
             isValid: false,
             hasErrors: true,
+            hasWarnings: false,
             errors: [
               {
                 id: 'json-syntax-err',
@@ -109,9 +110,8 @@ export const BackupRestoreTab: React.FC = () => {
               },
             ],
             warnings: [],
-            totalErrorsCount: 1,
-            totalWarningsCount: 0,
             summary: null,
+            sanitizedData: null,
           });
           setIsValidationModalOpen(true);
           return;

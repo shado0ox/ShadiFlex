@@ -9,6 +9,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useAccounting } from '../../../context/AccountingContext';
+import { useToast } from '../../../context/ToastContext';
 import { FinancialPeriod } from '../../../types/accounting';
 
 export const FinancialPeriodsTab: React.FC = () => {
@@ -18,6 +19,7 @@ export const FinancialPeriodsTab: React.FC = () => {
     closeFinancialPeriod,
     reopenFinancialPeriod,
   } = useAccounting();
+  const { toast } = useToast();
 
   const [periodActionSuccessMsg, setPeriodActionSuccessMsg] = useState<string | null>(null);
   const [periodActionErrorMsg, setPeriodActionErrorMsg] = useState<string | null>(null);
@@ -42,12 +44,14 @@ export const FinancialPeriodsTab: React.FC = () => {
     setPeriodActionErrorMsg(null);
     try {
       await closeFinancialPeriod(closingPeriodTarget.id, periodClosingOfficer, periodClosingNotes);
+      toast.success(`تم إقفال الفترة المالية (${closingPeriodTarget.nameAr}) بنجاح`);
       setPeriodActionSuccessMsg(`تم إقفال الفترة المالية (${closingPeriodTarget.nameAr}) بنجاح.`);
       setClosingPeriodTarget(null);
       setPeriodClosingNotes('');
       setTimeout(() => setPeriodActionSuccessMsg(null), 4000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء إقفال الفترة';
+      toast.error(msg);
       setPeriodActionErrorMsg(msg);
     } finally {
       setPeriodClosingInProgress(false);
@@ -59,6 +63,7 @@ export const FinancialPeriodsTab: React.FC = () => {
     e.preventDefault();
     if (!reopenPeriodTarget) return;
     if (!periodReopenReason.trim()) {
+      toast.warning('يجب إدخال سبب واضح ومبرر لإعادة فتح الفترة المالية');
       setPeriodActionErrorMsg('يجب إدخال سبب واضح ومبرر لإعادة فتح الفترة المالية.');
       return;
     }
@@ -66,6 +71,7 @@ export const FinancialPeriodsTab: React.FC = () => {
     setPeriodActionErrorMsg(null);
     try {
       await reopenFinancialPeriod(reopenPeriodTarget.id, periodReopenReason.trim(), periodReopenOfficer);
+      toast.success(`تمت إعادة فتح الفترة المالية (${reopenPeriodTarget.nameAr}) بنجاح`);
       setPeriodActionSuccessMsg(
         `تمت إعادة فتح الفترة المالية (${reopenPeriodTarget.nameAr}) بنجاح، وتم تسجيل التوثيق في سجل التدقيق (Audit Log).`
       );
@@ -74,6 +80,7 @@ export const FinancialPeriodsTab: React.FC = () => {
       setTimeout(() => setPeriodActionSuccessMsg(null), 5000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء إعادة فتح الفترة';
+      toast.error(msg);
       setPeriodActionErrorMsg(msg);
     } finally {
       setPeriodReopenInProgress(false);

@@ -545,8 +545,14 @@ export const JournalEntriesView: React.FC<{ onOpenNewEntry: () => void }> = ({ o
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         <div className="divide-y divide-slate-100">
           {filtered.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-xs">
-              لا توجد قيود يومية مطابقة للبحث.
+            <div className="p-8 text-center">
+              <EmptyState
+                icon={BookOpen}
+                title="لا توجد قيود يومية"
+                description={searchTerm ? "لم يتم العثور على قيود يومية تطابق معايير البحث." : "لم يتم تسجيل أي قيود محاسبية بعد. يمكنك إنشاء قيد يدوي جديد لمطابقة العمليات."}
+                actionLabel="إنشاء قيد يومية جديد"
+                onAction={onOpenNewEntry}
+              />
             </div>
           ) : (
             filtered.map((entry) => {

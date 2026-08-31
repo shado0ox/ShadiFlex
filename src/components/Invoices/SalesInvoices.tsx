@@ -201,8 +201,14 @@ export const SalesInvoices: React.FC<SalesInvoicesProps> = ({
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-8 text-center text-slate-400">
-                    لا توجد فواتير مبيعات مطابقة لمعايير البحث.
+                  <td colSpan={11} className="p-8 text-center">
+                    <EmptyState
+                      icon={Receipt}
+                      title="لا توجد فواتير مبيعات"
+                      description={searchTerm ? "لم يتم العثور على فواتير تطابق معايير البحث الحالية." : "لم يتم إنشاء أي فواتير مبيعات بعد. ابدأ بإنشاء أول فاتورة ضريبية أو مبسطة."}
+                      actionLabel="إنشاء فاتورة جديدة"
+                      onAction={onOpenNewInvoice}
+                    />
                   </td>
                 </tr>
               ) : (

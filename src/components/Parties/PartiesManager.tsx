@@ -332,8 +332,14 @@ export const PartiesManager: React.FC = () => {
               {activeTab === 'customers' ? (
                 filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-slate-400">
-                      لا يوجد عملاء مطابقين.
+                    <td colSpan={8} className="p-8 text-center">
+                      <EmptyState
+                        icon={Users}
+                        title="لا يوجد عملاء"
+                        description={searchTerm ? "لم يتم العثور على عملاء يطابقون معايير البحث." : "لم يتم تسجيل أي عملاء بعد. أضف عميلك الأول لإصدار الفواتير وعروض الأسعار له."}
+                        actionLabel="إضافة عميل جديد"
+                        onAction={() => handleOpenAdd()}
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -395,8 +401,14 @@ export const PartiesManager: React.FC = () => {
               ) : (
                 filteredSuppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-slate-400">
-                      لا يوجد موردون مطابقون.
+                    <td colSpan={8} className="p-8 text-center">
+                      <EmptyState
+                        icon={Truck}
+                        title="لا يوجد موردون"
+                        description={searchTerm ? "لم يتم العثور على موردين يطابقون معايير البحث." : "لم يتم تسجيل أي موردين بعد. أضف موردك لتسجيل فواتير المشتريات والمدفوعات."}
+                        actionLabel="إضافة مورد جديد"
+                        onAction={() => handleOpenAdd()}
+                      />
                     </td>
                   </tr>
                 ) : (

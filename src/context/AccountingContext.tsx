@@ -1,4 +1,16 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import {
+  CompanyProvider,
+  FiscalPeriodsProvider,
+  AccountsProvider,
+  CustomersSuppliersProvider,
+  InventoryProvider,
+  JournalProvider,
+  InvoicesProvider,
+  POSProvider,
+  ReportsProvider,
+} from './modules';
+export * from './modules';
 import {
   Account,
   SalesInvoice,
@@ -4731,132 +4743,319 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   };
 
+  const companyContextValue = useMemo(
+    () => ({
+      companySettings,
+      updateCompanySettings,
+      activeTab,
+      setActiveTab,
+      apiKeys,
+      createApiKey,
+      toggleApiKeyStatus,
+      deleteApiKey,
+      auditLogs,
+      logAuditEvent,
+      clearAuditLogs,
+      resetToDemoData,
+      exportDataJson,
+      importDataJson,
+      validateBackupJson,
+      createPreImportEmergencyBackup,
+      getEmergencyBackupRecord,
+      restoreEmergencyBackup,
+    }),
+    [companySettings, activeTab, apiKeys, auditLogs]
+  );
+
+  const fiscalPeriodsContextValue = useMemo(
+    () => ({
+      financialPeriods,
+      fiscalClosings,
+      closeFinancialPeriod,
+      reopenFinancialPeriod,
+      checkDateInFiscalPeriod,
+      checkDateInFiscalYear: checkDateInFiscalYearWrapper,
+      closeFiscalYear,
+      reopenFiscalYear,
+    }),
+    [financialPeriods, fiscalClosings]
+  );
+
+  const accountsContextValue = useMemo(
+    () => ({
+      accounts,
+      addAccount,
+      updateAccount,
+      deleteAccount,
+      toggleAccountStatus,
+      checkAccountDependencies,
+      validateAccountForPosting: (accountIdentifier: string) =>
+        validateAccountForPosting(accountIdentifier, accounts),
+    }),
+    [accounts]
+  );
+
+  const customersSuppliersContextValue = useMemo(
+    () => ({
+      customers,
+      suppliers,
+      addCustomer,
+      updateCustomer,
+      deleteCustomer,
+      toggleCustomerStatus,
+      checkCustomerDependencies,
+      addSupplier,
+      updateSupplier,
+      deleteSupplier,
+      toggleSupplierStatus,
+      checkSupplierDependencies,
+    }),
+    [customers, suppliers]
+  );
+
+  const inventoryContextValue = useMemo(
+    () => ({
+      inventory,
+      stockMovements,
+      addInventoryItem,
+      updateInventoryItem,
+      deleteInventoryItem,
+      toggleInventoryItemStatus,
+      checkInventoryItemDependencies,
+      adjustInventoryStock,
+      validateSaleInventory: (items: any) => validateSaleInventory(items, inventory),
+      validatePurchaseInventory: (items: any) => validatePurchaseInventory(items),
+      checkDirectStockEditAllowed: (itemId: string) => checkDirectStockEditAllowed(itemId, stockMovements),
+    }),
+    [inventory, stockMovements]
+  );
+
+  const journalContextValue = useMemo(
+    () => ({
+      journalEntries,
+      createManualJournalEntry,
+      deleteJournalEntry,
+      validateJournalEntry: (entry: Partial<JournalEntry> & { lines?: Partial<JournalEntryLine>[] }) =>
+        validateJournalEntry(entry, accounts),
+    }),
+    [journalEntries, accounts]
+  );
+
+  const invoicesContextValue = useMemo(
+    () => ({
+      salesInvoices,
+      purchaseInvoices,
+      debitCreditNotes,
+      vouchers,
+      simpleExpenses,
+      createSalesInvoice,
+      updateSalesInvoice,
+      deleteSalesInvoice,
+      recordInvoicePayment,
+      createPurchaseInvoice,
+      updatePurchaseInvoice,
+      deletePurchaseInvoice,
+      createDebitCreditNote,
+      deleteDebitCreditNote,
+      createVoucher,
+      deleteVoucher,
+      createSimpleExpense,
+      deleteSimpleExpense,
+      postDocument,
+      cancelDraftDocument,
+      reversePostedDocument,
+    }),
+    [salesInvoices, purchaseInvoices, debitCreditNotes, vouchers, simpleExpenses]
+  );
+
+  const posContextValue = useMemo(
+    () => ({
+      branches,
+      cashRegisters,
+      cashierShifts,
+      parkedOrders,
+      activeBranchId,
+      setActiveBranchId,
+      activeRegisterId,
+      setActiveRegisterId,
+      activeShift,
+      addBranch,
+      updateBranch,
+      deleteBranch,
+      toggleBranchStatus,
+      checkBranchDependencies,
+      addCashRegister,
+      updateCashRegister,
+      deleteCashRegister,
+      toggleCashRegisterStatus,
+      checkCashRegisterDependencies,
+      startCashierShift,
+      closeCashierShift,
+      cashDropShift,
+      parkOrder,
+      resumeParkedOrder,
+      deleteParkedOrder,
+      processPosSale,
+    }),
+    [branches, cashRegisters, cashierShifts, parkedOrders, activeBranchId, activeRegisterId, activeShift]
+  );
+
+  const reportsContextValue = useMemo(
+    () => ({
+      getAccountStatement,
+      getIncomeStatement,
+      getBalanceSheet,
+      getTrialBalance,
+      getCashFlowStatement,
+      getVatReturn,
+    }),
+    [journalEntries, accounts, salesInvoices, purchaseInvoices, debitCreditNotes, vouchers]
+  );
+
   return (
-    <AccountingContext.Provider
-      value={{
-        accounts,
-        salesInvoices,
-        purchaseInvoices,
-        debitCreditNotes,
-        vouchers,
-        simpleExpenses,
-        apiKeys,
-        fiscalClosings,
-        customers,
-        suppliers,
-        inventory,
-        stockMovements,
-        journalEntries,
-        companySettings,
-        auditLogs,
-        activeTab,
-        setActiveTab,
-        logAuditEvent,
-        clearAuditLogs,
-        createSalesInvoice,
-        updateSalesInvoice,
-        deleteSalesInvoice,
-        createPurchaseInvoice,
-        updatePurchaseInvoice,
-        deletePurchaseInvoice,
-        createDebitCreditNote,
-        deleteDebitCreditNote,
-        createVoucher,
-        deleteVoucher,
-        createSimpleExpense,
-        deleteSimpleExpense,
-        createApiKey,
-        toggleApiKeyStatus,
-        deleteApiKey,
-        closeFiscalYear,
-        reopenFiscalYear,
-        financialPeriods,
-        closeFinancialPeriod,
-        reopenFinancialPeriod,
-        checkDateInFiscalPeriod,
-        checkDateInFiscalYear: checkDateInFiscalYearWrapper,
-        recordInvoicePayment,
-        createManualJournalEntry,
-        deleteJournalEntry,
-        postDocument,
-        cancelDraftDocument,
-        reversePostedDocument,
-        addCustomer,
-        updateCustomer,
-        deleteCustomer,
-        toggleCustomerStatus,
-        checkCustomerDependencies,
-        addSupplier,
-        updateSupplier,
-        deleteSupplier,
-        toggleSupplierStatus,
-        checkSupplierDependencies,
-        addInventoryItem,
-        updateInventoryItem,
-        deleteInventoryItem,
-        toggleInventoryItemStatus,
-        checkInventoryItemDependencies,
-        adjustInventoryStock,
-        addAccount,
-        updateAccount,
-        deleteAccount,
-        toggleAccountStatus,
-        checkAccountDependencies,
-        updateCompanySettings,
-        resetToDemoData,
-        exportDataJson,
-        importDataJson,
-        validateBackupJson,
-        createPreImportEmergencyBackup,
-        getEmergencyBackupRecord,
-        restoreEmergencyBackup,
-        // POS & Branches State and Methods
-        branches,
-        cashRegisters,
-        cashierShifts,
-        parkedOrders,
-        activeBranchId,
-        setActiveBranchId,
-        activeRegisterId,
-        setActiveRegisterId,
-        activeShift,
-        addBranch,
-        updateBranch,
-        deleteBranch,
-        toggleBranchStatus,
-        checkBranchDependencies,
-        addCashRegister,
-        updateCashRegister,
-        deleteCashRegister,
-        toggleCashRegisterStatus,
-        checkCashRegisterDependencies,
-        startCashierShift,
-        closeCashierShift,
-        cashDropShift,
-        parkOrder,
-        resumeParkedOrder,
-        deleteParkedOrder,
-        processPosSale,
-        // Financial statements
-        getAccountStatement,
-        getIncomeStatement,
-        getBalanceSheet,
-        getTrialBalance,
-        getCashFlowStatement,
-        getVatReturn,
-        // Journal validation helpers
-        validateJournalEntry: (entry: Partial<JournalEntry> & { lines?: Partial<JournalEntryLine>[] }) =>
-          validateJournalEntry(entry, accounts),
-        validateAccountForPosting: (accountIdentifier: string) =>
-          validateAccountForPosting(accountIdentifier, accounts),
-        // Inventory validation helpers
-        validateSaleInventory: (items) => validateSaleInventory(items, inventory),
-        validatePurchaseInventory: (items) => validatePurchaseInventory(items),
-        checkDirectStockEditAllowed: (itemId: string) => checkDirectStockEditAllowed(itemId, stockMovements),
-      }}
-    >
-      {children}
-    </AccountingContext.Provider>
+    <CompanyProvider value={companyContextValue}>
+      <FiscalPeriodsProvider value={fiscalPeriodsContextValue}>
+        <AccountsProvider value={accountsContextValue}>
+          <CustomersSuppliersProvider value={customersSuppliersContextValue}>
+            <InventoryProvider value={inventoryContextValue}>
+              <JournalProvider value={journalContextValue}>
+                <InvoicesProvider value={invoicesContextValue}>
+                  <POSProvider value={posContextValue}>
+                    <ReportsProvider value={reportsContextValue}>
+                      <AccountingContext.Provider
+                        value={{
+                          accounts,
+                          salesInvoices,
+                          purchaseInvoices,
+                          debitCreditNotes,
+                          vouchers,
+                          simpleExpenses,
+                          apiKeys,
+                          fiscalClosings,
+                          customers,
+                          suppliers,
+                          inventory,
+                          stockMovements,
+                          journalEntries,
+                          companySettings,
+                          auditLogs,
+                          activeTab,
+                          setActiveTab,
+                          logAuditEvent,
+                          clearAuditLogs,
+                          createSalesInvoice,
+                          updateSalesInvoice,
+                          deleteSalesInvoice,
+                          createPurchaseInvoice,
+                          updatePurchaseInvoice,
+                          deletePurchaseInvoice,
+                          createDebitCreditNote,
+                          deleteDebitCreditNote,
+                          createVoucher,
+                          deleteVoucher,
+                          createSimpleExpense,
+                          deleteSimpleExpense,
+                          createApiKey,
+                          toggleApiKeyStatus,
+                          deleteApiKey,
+                          closeFiscalYear,
+                          reopenFiscalYear,
+                          financialPeriods,
+                          closeFinancialPeriod,
+                          reopenFinancialPeriod,
+                          checkDateInFiscalPeriod,
+                          checkDateInFiscalYear: checkDateInFiscalYearWrapper,
+                          recordInvoicePayment,
+                          createManualJournalEntry,
+                          deleteJournalEntry,
+                          postDocument,
+                          cancelDraftDocument,
+                          reversePostedDocument,
+                          addCustomer,
+                          updateCustomer,
+                          deleteCustomer,
+                          toggleCustomerStatus,
+                          checkCustomerDependencies,
+                          addSupplier,
+                          updateSupplier,
+                          deleteSupplier,
+                          toggleSupplierStatus,
+                          checkSupplierDependencies,
+                          addInventoryItem,
+                          updateInventoryItem,
+                          deleteInventoryItem,
+                          toggleInventoryItemStatus,
+                          checkInventoryItemDependencies,
+                          adjustInventoryStock,
+                          addAccount,
+                          updateAccount,
+                          deleteAccount,
+                          toggleAccountStatus,
+                          checkAccountDependencies,
+                          updateCompanySettings,
+                          resetToDemoData,
+                          exportDataJson,
+                          importDataJson,
+                          validateBackupJson,
+                          createPreImportEmergencyBackup,
+                          getEmergencyBackupRecord,
+                          restoreEmergencyBackup,
+                          // POS & Branches State and Methods
+                          branches,
+                          cashRegisters,
+                          cashierShifts,
+                          parkedOrders,
+                          activeBranchId,
+                          setActiveBranchId,
+                          activeRegisterId,
+                          setActiveRegisterId,
+                          activeShift,
+                          addBranch,
+                          updateBranch,
+                          deleteBranch,
+                          toggleBranchStatus,
+                          checkBranchDependencies,
+                          addCashRegister,
+                          updateCashRegister,
+                          deleteCashRegister,
+                          toggleCashRegisterStatus,
+                          checkCashRegisterDependencies,
+                          startCashierShift,
+                          closeCashierShift,
+                          cashDropShift,
+                          parkOrder,
+                          resumeParkedOrder,
+                          deleteParkedOrder,
+                          processPosSale,
+                          // Financial statements
+                          getAccountStatement,
+                          getIncomeStatement,
+                          getBalanceSheet,
+                          getTrialBalance,
+                          getCashFlowStatement,
+                          getVatReturn,
+                          // Journal validation helpers
+                          validateJournalEntry: (entry: Partial<JournalEntry> & { lines?: Partial<JournalEntryLine>[] }) =>
+                            validateJournalEntry(entry, accounts),
+                          validateAccountForPosting: (accountIdentifier: string) =>
+                            validateAccountForPosting(accountIdentifier, accounts),
+                          // Inventory validation helpers
+                          validateSaleInventory: (items) => validateSaleInventory(items, inventory),
+                          validatePurchaseInventory: (items) => validatePurchaseInventory(items),
+                          checkDirectStockEditAllowed: (itemId: string) => checkDirectStockEditAllowed(itemId, stockMovements),
+                        }}
+                      >
+                        {children}
+                      </AccountingContext.Provider>
+                    </ReportsProvider>
+                  </POSProvider>
+                </InvoicesProvider>
+              </JournalProvider>
+            </InventoryProvider>
+          </CustomersSuppliersProvider>
+        </AccountsProvider>
+      </FiscalPeriodsProvider>
+    </CompanyProvider>
   );
 };
 

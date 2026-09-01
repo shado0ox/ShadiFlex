@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   Printer,
   Sparkles,
-  FolderTree,
   Scale,
   ChevronLeft,
 } from 'lucide-react';
@@ -213,66 +212,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Main Bento Grid Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Feature Bento Card: Chart of Accounts & Financial Pulse (4 cols, 2 rows) */}
-        <div className="lg:col-span-4 lg:row-span-2 bg-emerald-900 rounded-2xl p-6 text-white border border-emerald-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
-          {/* Ambient Glow */}
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-emerald-700/40 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-emerald-600/20 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="relative z-10 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold tracking-wider text-emerald-300 uppercase bg-emerald-800/80 px-2.5 py-1 rounded-full border border-emerald-700">
-                الدليل المحاسبي الموحد
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-800 flex items-center justify-center text-emerald-300">
-                <FolderTree className="w-4 h-4" />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-xl font-bold text-white tracking-tight">شجرة الحسابات الذكية</h3>
-              <p className="text-xs text-emerald-200/80 mt-1 leading-relaxed">
-                مبوبة وفقاً لمعايير الهيئة السعودية للمراجعين والمحاسبين (SOCPA) بنظام الترميز العشري.
-              </p>
-            </div>
-
-            {/* Account Group Badges */}
-            <div className="space-y-2 pt-2">
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/50 border border-emerald-800/60 text-xs">
-                <span className="text-emerald-200">1. الأصول (Assets)</span>
-                <span className="font-mono font-bold text-white">
-                  {formatSAR(liquidCash + inventoryValuation + 200000)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/50 border border-emerald-800/60 text-xs">
-                <span className="text-emerald-200">2. الخصوم (Liabilities)</span>
-                <span className="font-mono font-bold text-white">{formatSAR(vatReturn.netVatPayableOrRefundable + 15000)}</span>
-              </div>
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/50 border border-emerald-800/60 text-xs">
-                <span className="text-emerald-200">3. حقوق الملكية (Equity)</span>
-                <span className="font-mono font-bold text-white">{formatSAR(250000)}</span>
-              </div>
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/50 border border-emerald-800/60 text-xs">
-                <span className="text-emerald-200">4. الإيرادات والمبيعات</span>
-                <span className="font-mono font-bold text-emerald-300">{formatSAR(totalSales)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative z-10 pt-4 mt-4 border-t border-emerald-800/80">
-            <button
-              onClick={() => setActiveTab('accounts')}
-              className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-xs"
-            >
-              <span>إدارة وتصفح شجرة الحسابات</span>
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Bento Card: Sales vs Purchases Monthly Bar Chart (8 cols) */}
-        <div className="lg:col-span-8 bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
+      <div className="grid grid-cols-1 gap-5">
+        {/* Bento Card: Sales vs Purchases Monthly Bar Chart */}
+        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-900">
@@ -292,7 +234,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
 
-          <div className="h-60 w-full">
+          <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -315,8 +257,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* Bento Card: Recent Invoices Table (8 cols) */}
-        <div className="lg:col-span-8 bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
+        {/* Bento Card: Recent Invoices Table */}
+        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
               <div>

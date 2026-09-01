@@ -72,41 +72,22 @@ export const DesignerSignature: React.FC<DesignerSignatureProps> = ({
       <>
         <footer
           onClick={() => setShowModal(true)}
-          className={`cursor-pointer group relative mt-8 overflow-hidden rounded-2xl p-4 sm:p-5 transition-all duration-300 ${className} bg-linear-to-r from-slate-950 via-slate-900 to-emerald-950 border border-amber-500/25 hover:border-amber-400/50 shadow-xl shadow-slate-950/40`}
+          className={`cursor-pointer group mt-6 pt-4 pb-2 border-t border-slate-200/80 transition-all duration-200 ${className}`}
         >
-          {/* Subtle Ambient Ornaments */}
-          <div className="absolute inset-0 bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:16px_16px] opacity-5"></div>
-          
-          <div className="relative flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-start">
-            <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-linear-to-tr from-amber-500 to-amber-300 p-0.5 shadow-md shadow-amber-500/20">
-                <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-                  <Feather className="w-5 h-5 text-amber-400 group-hover:rotate-12 transition-transform duration-300" />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-center md:justify-start gap-2">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-amber-400/90 font-serif">
-                    {language === 'ar' ? 'توقيع التصميم والتطوير' : 'Official Design Signature'}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-400/10 text-amber-300 border border-amber-400/30">
-                    VIP EDITION
-                  </span>
-                </div>
-                <h4 className="text-base font-black text-transparent bg-clip-text bg-linear-to-r from-amber-100 via-amber-300 to-amber-50 font-serif">
-                  {language === 'ar'
-                    ? '✨ تم التصميم والتطوير بواسطة الأستاذ / شادي ناصف ✨'
-                    : '✨ Designed & Engineered by Mr. Shady Nassef ✨'}
-                </h4>
-              </div>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 hover:text-slate-600">
+            <div className="flex items-center gap-2">
+              <Feather className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+              <span className="font-medium text-slate-500 group-hover:text-slate-700 transition-colors">
+                {language === 'ar'
+                  ? 'تصميم وتطوير: أ/ شادي ناصف'
+                  : 'Designed & Developed by: Mr. Shady Nassef'}
+              </span>
             </div>
-
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-400 bg-slate-800/60 px-4 py-2 rounded-xl border border-slate-700/60 group-hover:border-amber-400/40 transition">
-              <Sparkles className="w-4 h-4 text-amber-400" />
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
               <span>
                 {language === 'ar'
-                  ? 'برنامج محاسبي سحابي فاخر ونقاط بيع ZATCA'
-                  : 'Luxury Cloud ERP & ZATCA POS System'}
+                  ? 'نظام المحاسبة ونقاط البيع السحابي ZATCA'
+                  : 'Cloud ERP & ZATCA POS System'}
               </span>
             </div>
           </div>

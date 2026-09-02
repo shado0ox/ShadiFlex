@@ -7,6 +7,11 @@ import {
   useAccounts,
   useJournal,
   useInvoices,
+  useSalesInvoices,
+  usePurchaseInvoices,
+  useDebitCreditNotes,
+  useInvoiceSequence,
+  useVouchers,
   useInventory,
   useCustomersSuppliers,
   useParties,
@@ -48,6 +53,51 @@ describe('Modular Contexts and Sub-Hooks', () => {
     expect(result.current.purchaseInvoices).toBeDefined();
     expect(typeof result.current.createSalesInvoice).toBe('function');
     expect(typeof result.current.reversePostedDocument).toBe('function');
+  });
+
+  it('provides useSalesInvoices hook correctly', () => {
+    const { result } = renderHook(() => useSalesInvoices(), { wrapper });
+    expect(result.current.salesInvoices).toBeDefined();
+    expect(Array.isArray(result.current.salesInvoices)).toBe(true);
+    expect(typeof result.current.createSalesInvoice).toBe('function');
+    expect(typeof result.current.updateSalesInvoice).toBe('function');
+    expect(typeof result.current.deleteSalesInvoice).toBe('function');
+    expect(typeof result.current.recordInvoicePayment).toBe('function');
+  });
+
+  it('provides usePurchaseInvoices hook correctly', () => {
+    const { result } = renderHook(() => usePurchaseInvoices(), { wrapper });
+    expect(result.current.purchaseInvoices).toBeDefined();
+    expect(Array.isArray(result.current.purchaseInvoices)).toBe(true);
+    expect(typeof result.current.createPurchaseInvoice).toBe('function');
+    expect(typeof result.current.updatePurchaseInvoice).toBe('function');
+    expect(typeof result.current.deletePurchaseInvoice).toBe('function');
+  });
+
+  it('provides useDebitCreditNotes hook correctly', () => {
+    const { result } = renderHook(() => useDebitCreditNotes(), { wrapper });
+    expect(result.current.debitCreditNotes).toBeDefined();
+    expect(Array.isArray(result.current.debitCreditNotes)).toBe(true);
+    expect(typeof result.current.createDebitCreditNote).toBe('function');
+    expect(typeof result.current.deleteDebitCreditNote).toBe('function');
+  });
+
+  it('provides useInvoiceSequence hook correctly', () => {
+    const { result } = renderHook(() => useInvoiceSequence(), { wrapper });
+    expect(typeof result.current.getDocFiscalYear).toBe('function');
+    expect(typeof result.current.getNextDocumentNumber).toBe('function');
+    expect(typeof result.current.getNextNumberForDate).toBe('function');
+    expect(result.current.getDocFiscalYear('2026-05-10')).toBe(2026);
+  });
+
+  it('provides useVouchers hook correctly', () => {
+    const { result } = renderHook(() => useVouchers(), { wrapper });
+    expect(result.current.vouchers).toBeDefined();
+    expect(result.current.simpleExpenses).toBeDefined();
+    expect(typeof result.current.createVoucher).toBe('function');
+    expect(typeof result.current.deleteVoucher).toBe('function');
+    expect(typeof result.current.createSimpleExpense).toBe('function');
+    expect(typeof result.current.deleteSimpleExpense).toBe('function');
   });
 
   it('provides useInventory hook correctly', () => {
